@@ -1,11 +1,13 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
 
 /**
- * Misma regla que el backend (`common/sql/sentencia-update.util.ts`, mantener ambos iguales):
- * una o varias sentencias UPDATE separadas por ";", cada una con WHERE; MySQL con la tabla como
- * base.tabla y PostgreSQL como esquema.tabla (la base sale de Configuración). Aquí solo adelanta
- * la advertencia mientras se escribe; el backend es quien la hace cumplir y ejecuta todo en una
- * transacción. También rechaza la sentencia con rasgos del otro motor (miosv2_* / tenant_*, ::, backticks...).
+ * Misma regla que el backend (`common/sql/sentencia.util.ts`, mantener ambos iguales):
+ * una o varias sentencias separadas por ";", todas UPDATE con WHERE o todas INSERT limpios
+ * (`INSERT INTO tabla (columnas) VALUES (...)`, sin SELECT, ON DUPLICATE KEY UPDATE, ON CONFLICT,
+ * IGNORE ni RETURNING), nunca mezcladas; MySQL con la tabla como base.tabla y PostgreSQL como
+ * esquema.tabla (la base sale de Configuración). Aquí solo adelanta la advertencia mientras se
+ * escribe; el backend es quien la hace cumplir y ejecuta todo en una transacción. También rechaza
+ * la sentencia con rasgos del otro motor (miosv2_* / tenant_*, ::, backticks...).
  */
 export type MotorSentencia = 'mysql' | 'postgres';
 
@@ -21,15 +23,15 @@ export interface ValidacionSentencia {
   mensaje: string | null;
 }
 
-/** Forma exigida por motor para el nombre de la tabla del UPDATE. */
+/** Forma exigida por motor para el nombre de la tabla de la sentencia. */
 const FORMA_TABLA: Record<MotorSentencia, { falta: string; ejemplo: string }> = {
   mysql: { falta: 'la base de datos', ejemplo: 'base.tabla (ej. miosv2_falabella_2024.promises)' },
   postgres: { falta: 'el esquema', ejemplo: 'esquema.tabla (ej. public.promises)' },
 };
 
 const IDENTIFICADOR = '(?:`[^`]+`|"[^"]+"|[A-Za-z0-9_$]+)';
-const TABLA_DEL_UPDATE = new RegExp(
-  `^UPDATE\\s+(?:(?:LOW_PRIORITY|IGNORE|ONLY)\\s+)*(${IDENTIFICADOR}(?:\\s*\\.\\s*${IDENTIFICADOR})*)`,
+const TABLA_DE_LA_SENTENCIA = new RegExp(
+  `^(?:UPDATE\\s+(?:(?:LOW_PRIORITY|IGNORE|ONLY)\\s+)*|INSERT\\s+INTO\\s+)(${IDENTIFICADOR}(?:\\s*\\.\\s*${IDENTIFICADOR})*)`,
   'i',
 );
 
@@ -48,12 +50,12 @@ function quitarComentariosIniciales(sql: string): string {
   }
 }
 
-/** Nombre de la tabla del UPDATE tal como se escribió (con comillas si las trae), o null. */
+/** Nombre de la tabla de la sentencia tal como se escribió (con comillas si las trae), o null. */
 function nombreTabla(sentencia: string): string | null {
-  return quitarComentariosIniciales(sentencia).match(TABLA_DEL_UPDATE)?.[1] ?? null;
+  return quitarComentariosIniciales(sentencia).match(TABLA_DE_LA_SENTENCIA)?.[1] ?? null;
 }
 
-/** Partes del nombre de la tabla del UPDATE, sin comillas (ej. ["miosv2_falabella_2024", "promises"]). */
+/** Partes del nombre de la tabla de la sentencia, sin comillas (ej. ["miosv2_falabella_2024", "promises"]). */
 function partesTabla(sentencia: string): string[] {
   const nombre = nombreTabla(sentencia);
   if (!nombre) {
@@ -77,7 +79,7 @@ export function extraerBaseDeDatos(sentencia: string, motor: MotorSentencia): st
   return partes.length === 3 ? partes[0] : null;
 }
 
-const TITULO_REGLA = 'Solo se permiten sentencias UPDATE con WHERE.';
+const TITULO_REGLA = 'Solo se permiten sentencias UPDATE con WHERE o INSERT INTO ... VALUES.';
 
 /** Separa por `;` fuera de textos y comentarios; descarta los fragmentos que solo tienen comentarios. */
 export function separarSentencias(sql: string): string[] {
@@ -195,15 +197,55 @@ function esDeOtroMotor(sentencia: string, motor: MotorSentencia): boolean {
   );
 }
 
-/** Motivo por el que una sentencia no se permite, o null si es un UPDATE con WHERE. */
+/** Primera palabra del código (ej. 'UPDATE', 'INSERT'), en mayúsculas, o null. */
+function tipoSentencia(sentencia: string): string | null {
+  return soloCodigo(sentencia).trimStart().match(/^[A-Za-z]+/)?.[0]?.toUpperCase() ?? null;
+}
+
+/**
+ * Forma exacta del INSERT limpio sobre el nivel principal (lo de dentro de los paréntesis ya
+ * viene en blanco): `INSERT INTO tabla ( ) VALUES ( ) [, ( )]...`.
+ */
+const FORMA_INSERT = /^\s*INSERT\s+INTO\s+[^()]+\(\s*\)\s*VALUES\s*\(\s*\)(?:\s*,\s*\(\s*\))*\s*$/i;
+
+/** Motivo por el que un INSERT no es limpio, o null si lo es. */
+function motivoRechazoInsert(codigo: string): string | null {
+  const principal = nivelPrincipal(codigo);
+  if (!/^\s*INSERT\s+INTO\b/i.test(principal)) {
+    return /^\s*INSERT\s+(?:LOW_PRIORITY\s+|DELAYED\s+|HIGH_PRIORITY\s+)*IGNORE\b/i.test(principal)
+      ? 'usa INSERT IGNORE, que oculta los errores; retira IGNORE.'
+      : 'debe escribirse como INSERT INTO tabla (columnas) VALUES (...).';
+  }
+  if (/\bSELECT\b/i.test(codigo)) {
+    return 'trae un SELECT; solo se permiten valores escritos en VALUES.';
+  }
+  if (/\bON\s+(?:DUPLICATE|CONFLICT)\b/i.test(principal)) {
+    return 'modifica registros existentes (ON DUPLICATE KEY UPDATE / ON CONFLICT); retira esa cláusula.';
+  }
+  if (/\bRETURNING\b/i.test(principal)) {
+    return 'usa RETURNING; retira esa cláusula.';
+  }
+  if (!/^\s*INSERT\s+INTO\s+[^()]+\(\s*\)\s*VALUES\b/i.test(principal)) {
+    return 'debe indicar la lista de columnas: INSERT INTO tabla (columnas) VALUES (...).';
+  }
+  if (!FORMA_INSERT.test(principal)) {
+    return 'debe tener solo la forma INSERT INTO tabla (columnas) VALUES (...).';
+  }
+  return null;
+}
+
+/** Motivo por el que una sentencia no se permite, o null si es un UPDATE con WHERE o un INSERT limpio. */
 function motivoRechazo(sentencia: string): string | null {
   const codigo = soloCodigo(sentencia);
-  const tipo = codigo.trimStart().match(/^[A-Za-z]+/)?.[0]?.toUpperCase() ?? null;
-  if (tipo !== 'UPDATE') {
-    return tipo ? `es un ${tipo}; ajústala a un UPDATE.` : 'no se reconoce el tipo de sentencia.';
+  const tipo = tipoSentencia(sentencia);
+  if (tipo !== 'UPDATE' && tipo !== 'INSERT') {
+    return tipo ? `es un ${tipo}; ajústala a un UPDATE o a un INSERT.` : 'no se reconoce el tipo de sentencia.';
   }
   if (/\/\*[!+]/.test(sentencia)) {
     return 'contiene comentarios ejecutables (/*! */); retíralos.';
+  }
+  if (tipo === 'INSERT') {
+    return motivoRechazoInsert(codigo);
   }
   if (!tieneWherePrincipal(codigo)) {
     return 'no tiene cláusula WHERE para limitar los registros a actualizar.';
@@ -216,7 +258,7 @@ function motivoRechazo(sentencia: string): string | null {
  * de cada sentencia en `bases`. En PostgreSQL las que la indiquen deben ser la misma (una
  * conexión es de una sola base); en MySQL pueden ser distintas bases del mismo servidor.
  */
-export function validarSentenciaUpdate(sql: string, motor?: MotorSentencia): ValidacionSentencia {
+export function validarSentencia(sql: string, motor?: MotorSentencia): ValidacionSentencia {
   const rechazo = (mensaje: string): ValidacionSentencia => ({ valida: false, sentencias: [], bases: [], mensaje });
   const sentencias = separarSentencias(sql ?? '');
   if (!sentencias.length) {
@@ -228,6 +270,13 @@ export function validarSentenciaUpdate(sql: string, motor?: MotorSentencia): Val
     const motivo = motivoRechazo(sentencia);
     if (motivo) {
       return rechazo(`${TITULO_REGLA}\n${cual} ${motivo}`);
+    }
+    const tipo = tipoSentencia(sentencia);
+    const primerTipo = tipoSentencia(sentencias[0]);
+    if (tipo !== primerTipo) {
+      return rechazo(
+        `No se pueden mezclar UPDATE e INSERT en una misma solicitud.\n${cual} es un ${tipo}, pero la solicitud empieza con ${primerTipo}. Envía solo UPDATE o solo INSERT.`,
+      );
     }
     if (motor) {
       if (esDeOtroMotor(sentencia, motor)) {
@@ -253,12 +302,12 @@ export function validarSentenciaUpdate(sql: string, motor?: MotorSentencia): Val
 
 /** Mensaje de advertencia si la solicitud no cumple la regla para ese motor, o null si es válida. */
 export function advertenciaSentencia(sentencia: string, motor?: MotorSentencia | null): string | null {
-  return validarSentenciaUpdate(sentencia, motor ?? undefined).mensaje;
+  return validarSentencia(sentencia, motor ?? undefined).mensaje;
 }
 
 /**
  * Validador del formulario de Soporte (grupo): usa `sentencia` y `motor`. Sin motor elegido
- * valida solo UPDATE/WHERE; al elegirlo, también la forma de la tabla según el motor.
+ * valida solo la regla UPDATE/INSERT; al elegirlo, también la forma de la tabla según el motor.
  */
 export function sentenciaSegunMotorValidator(grupo: AbstractControl): ValidationErrors | null {
   const sentencia = (grupo.get('sentencia')?.value as string | null) ?? '';

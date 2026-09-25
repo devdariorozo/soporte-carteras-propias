@@ -4,12 +4,12 @@
 
 | Servicio (Compose) | Tecnología | Función | Puerto en el host |
 |---|---|---|---|
-| `web` | Angular 21 + PrimeNG 21 + Tailwind 4, compilado y servido por nginx | Interfaz; reenvía `/api` al contenedor `api` | 3001 |
-| `api` | NestJS 12 + TypeORM (Node 22) | API REST bajo `/api`, reglas de negocio, worker de la cola de ejecución | 3000 |
-| `mysql` | MySQL 8.0 | Base del sistema (`dbd_` / `dbq_` / `dbp_soporte_carteras_propias`) | Desarrollo: 3307 · QA/PRO: solo `127.0.0.1:3307` |
-| `redis` | Redis 7 (alpine) | Sesión activa por usuario, cola BullMQ, contador del rate limit | Desarrollo: 6380 · QA/PRO: no se publica |
+| `web` | Angular 21 + PrimeNG 21 + Tailwind 4, compilado y servido por nginx | Interfaz; reenvía `/api` al contenedor `api` | Desarrollo: 6001 · QA/PRO: 7001 |
+| `api` | NestJS 12 + TypeORM (Node 22) | API REST bajo `/api`, reglas de negocio, worker de la cola de ejecución | Desarrollo: 6002 · QA/PRO: 7002 (interno 3000) |
+| `mysql` | MySQL 8.0 | Base del sistema (`dbd_` / `dbq_` / `dbp_soporte_carteras_propias`) | Desarrollo: 3360 · QA/PRO: solo `127.0.0.1:3371` |
+| `redis` | Redis 7 (alpine) | Sesión activa por usuario, cola BullMQ, contador del rate limit | Desarrollo: 3361 · QA/PRO: solo `127.0.0.1:3372` |
 
-Servidores externos (no los administra el sistema): las **bases de las carteras**, donde Soporte ejecuta los `UPDATE`:
+Servidores externos (no los administra el sistema): las **bases de las carteras**, donde Soporte ejecuta los `UPDATE` e `INSERT`:
 
 | Motor | Qué es | Cómo se llega |
 |---|---|---|
@@ -19,7 +19,7 @@ Servidores externos (no los administra el sistema): las **bases de las carteras*
 Los datos de conexión viven en la tabla `configuracion` (filas `mysql` y `postgres`), no en el `.env`. Detalle: [09-configuracion](09-configuracion.md).
 
 ```
-Navegador ──► web (nginx :80 → host :3001)
+Navegador ──► web (nginx :80 → host :6001 dev / :7001 QA-PRO)
                  │  /api/*  (mismo origen)
                  ▼
               api (NestJS :3000) ──► mysql (base del sistema)
@@ -68,7 +68,7 @@ Navegador ──► web (nginx :80 → host :3001)
 | `interceptors/` | `ResponseInterceptor`: envuelve toda respuesta exitosa en el envelope |
 | `raw-db/` | Conexiones crudas (sin TypeORM) a las bases de las carteras: `raw-mysql.service.ts`, `raw-postgres.service.ts`, `tunel-ssh.ts`, `error-sentencia.ts` |
 | `redis/` | `RedisService` (global): sesión activa `auth:session:<idUsuario>` y contador atómico por ventana |
-| `sql/` | `sentencia-update.util.ts`: solo `UPDATE` con `WHERE` en el nivel principal y base en la tabla; separa por `;` |
+| `sql/` | `sentencia.util.ts`: solo `UPDATE` con `WHERE` en el nivel principal o solo `INSERT INTO … (columnas) VALUES (…)` limpios, nunca mezclados, y base en la tabla; separa por `;` |
 | `utils/` | `asignarDefinidos`, responsable (nombre completo por `id_usuario`), teléfono `3-3-4`, capitalización |
 | `validators/` | `PASSWORD_SEGURA_REGEX`: mayúscula, minúscula, número, símbolo, mínimo 8 |
 
@@ -90,7 +90,7 @@ Navegador ──► web (nginx :80 → host :3001)
 
 ## Flujo de una petición
 
-1. **Navegador → nginx.** La app llama a `/api/...` en su mismo origen. nginx (`frontend/nginx.conf`, `location ^~ /api/`) la reenvía a `http://api:3000`. En `ng serve` lo hace `frontend/proxy.conf.json` hacia `localhost:3000`.
+1. **Navegador → nginx.** La app llama a `/api/...` en su mismo origen. nginx (`frontend/nginx.conf`, `location ^~ /api/`) la reenvía a `http://api:3000`. En `ng serve` lo hace `frontend/proxy.conf.json` hacia `localhost:6002`.
 2. **Interceptores del frontend (salida)**, en este orden (`app.config.ts`):
    - `apiBaseUrlInterceptor`: con `apiUrl` vacío no cambia nada.
    - `authInterceptor`: agrega `Authorization: Bearer <access>` salvo en `login`, `refresh` y `recuperar-password`.
@@ -100,7 +100,7 @@ Navegador ──► web (nginx :80 → host :3001)
    2. `RolesGuard`: solo actúa donde hay `@Roles(...)` (hoy: restablecer contraseña asistido, Super Administrador y Administrador).
    3. `PermisosGuard`: con `@RequierePermiso(menú, acción)` exige una fila activa en `permisos` para el `idRol` del token: 403 si no existe.
 4. **`ValidationPipe`** global: `whitelist`, `forbidNonWhitelisted` y `transform`. Un campo de más o inválido da 400.
-5. **Controller → service:** el servicio aplica las reglas (jerarquía, duplicados, sentencia `UPDATE`) y devuelve `{ message?, data?, pagination? }`.
+5. **Controller → service:** el servicio aplica las reglas (jerarquía, duplicados, sentencia `UPDATE`/`INSERT`) y devuelve `{ message?, data?, pagination? }`.
 6. **`ResponseInterceptor`** arma el envelope de éxito. Cualquier excepción la captura **`HttpExceptionFilter`** y la convierte en envelope de error.
 7. **Interceptores del frontend (vuelta):** ante un 401 (salvo rutas públicas y `logout`), `authInterceptor` renueva la sesión con el refresh token y reintenta **una vez**. Si la renovación falla, cierra la sesión. Las vistas muestran `message` del envelope en toasts o en `alerta-resultado`.
 
@@ -139,6 +139,6 @@ Como el worker vive dentro de la API, cualquier proceso que use el mismo Redis c
 
 ## Swagger
 
-- `http://localhost:3000/api/docs` (directo a la API).
-- También responde por nginx en `http://localhost:3001/api/docs`, porque queda bajo `/api/`.
+- `http://localhost:6002/api/docs` (directo a la API; QA/PRO: `:7002`).
+- También responde por nginx en `http://localhost:6001/api/docs` (QA/PRO: `:7001`), porque queda bajo `/api/`.
 - Autenticación con **Authorize** → `Bearer <accessToken>`.

@@ -102,7 +102,7 @@ Migración única: `backend/src/database/migrations/1700000000000-initial-schema
 | `id_novedad` | `INT NOT NULL` | FK `fk_soporte_novedad` → `novedades.id` **ON DELETE RESTRICT** |
 | `mensaje_whatsapp` | `VARCHAR(255) NOT NULL` | Mensaje original del caso |
 | `motor` | `ENUM('mysql','postgres') NOT NULL` | Igual al `configuracion.nombre` de la conexión que se usa al ejecutar |
-| `sentencia` | `TEXT NOT NULL` | Uno o varios `UPDATE` con `WHERE` |
+| `sentencia` | `TEXT NOT NULL` | Uno o varios `UPDATE` con `WHERE`, o uno o varios `INSERT` limpios (sin mezclar) |
 | `estado_soporte` | `ENUM('Creado','En proceso','Completado','Error') NOT NULL DEFAULT 'Creado'` | No existe `Cancelado` |
 
 ### `configuracion`
@@ -165,9 +165,9 @@ Scripts de `backend/package.json`. En Docker, desarrollo usa los scripts con `ts
 | Revertir migración | `npm run migration:revert` | `... exec api npm run migration:revert` | `... exec api npm run migration:revert:prod` |
 | Correr seed | `npm run seed` | `... exec api npm run seed` | `... exec api npm run seed:prod` |
 | Borrar todas las tablas | `npm run schema:drop` | `... exec api npm run schema:drop` | `... exec api npm run schema:drop:prod` |
-| Consola MySQL | `mysql -h 127.0.0.1 -P 3307 -uroot -p` | `docker compose --env-file backend/.env -f docker-compose-dev.yml exec mysql sh -c 'mysql -uroot -p"$DB_PASSWORD" "$DB_NAME"'` | `docker compose --env-file backend/.env exec mysql sh -c 'mysql -uroot -p"$DB_PASSWORD" "$DB_NAME"'` |
+| Consola MySQL | `mysql -h 127.0.0.1 -P 3360 -uroot -p` | `docker compose --env-file backend/.env -f docker-compose-dev.yml exec mysql sh -c 'mysql -uroot -p"$DB_PASSWORD" "$DB_NAME"'` | `docker compose --env-file backend/.env exec mysql sh -c 'mysql -uroot -p"$DB_PASSWORD" "$DB_NAME"'` |
 
-Tradicional = MySQL y Redis en Docker, API con `npm` en el host (`DB_HOST=localhost`, `DB_PORT=3307`).
+Tradicional = MySQL y Redis en Docker, API con `npm` en el host (`DB_HOST=localhost`, `DB_PORT=3360`).
 
 ## Reconstruir la base
 

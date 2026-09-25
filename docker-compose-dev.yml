@@ -6,6 +6,8 @@
 #   docker compose -f docker-compose-dev.yml build --no-cache
 #   docker compose -f docker-compose-dev.yml up -d
 #
+# Puertos en el host: web 6001, API/Swagger 6002, MySQL 3360, Redis 3361.
+#
 # La API corre en modo watch: cada cambio en backend/src se refleja sin reconstruir.
 # El frontend se sirve compilado (nginx); tras cambiar frontend/ reconstruir `web`.
 # =============================================================================
@@ -22,7 +24,7 @@ services:
         required: true
     entrypoint: ['sh', '-c', 'export MYSQL_ROOT_PASSWORD="$$DB_PASSWORD" MYSQL_DATABASE="$$DB_NAME"; exec docker-entrypoint.sh mysqld']
     ports:
-      - '3307:3306'
+      - '3360:3306'
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -36,7 +38,7 @@ services:
     image: redis:7-alpine
     container_name: soporte-carteras-propias-dev-redis
     ports:
-      - '6380:6379'
+      - '3361:6379'
     restart: unless-stopped
 
   api:
@@ -49,6 +51,9 @@ services:
       - path: ./backend/.env
         required: true
     environment:
+      # Dentro del contenedor la API siempre escucha en 3000 (nginx de `web` apunta a api:3000);
+      # el PORT de backend/.env (6002) solo aplica al correr la API sin Docker.
+      PORT: 3000
       DB_HOST: mysql
       DB_PORT: 3306
       REDIS_HOST: redis
@@ -67,7 +72,7 @@ services:
       # (los comandos llevan --env-file backend/.env).
       - ${SSH_KEY_PATH:-/dev/null}:/run/secrets/bastion_key:ro
     ports:
-      - '3000:3000'
+      - '6002:3000'
     depends_on:
       mysql:
         condition: service_healthy
@@ -81,7 +86,7 @@ services:
     image: soporte-carteras-propias-dev-web:latest
     container_name: soporte-carteras-propias-dev-web
     ports:
-      - '3001:80'
+      - '6001:80'
     depends_on:
       - api
     restart: unless-stopped

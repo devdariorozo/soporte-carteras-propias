@@ -1,6 +1,6 @@
 # 14 · API
 
-API REST de NestJS. Prefijo global `/api` (`backend/src/main.ts`). Swagger interactivo: `http://localhost:3000/api/docs` (también por nginx en `:3001/api/docs`).
+API REST de NestJS. Prefijo global `/api` (`backend/src/main.ts`). Swagger interactivo: `http://localhost:6002/api/docs` en desarrollo y `http://<servidor>:7002/api/docs` en QA/PRO (también por nginx en `:6001/api/docs` / `:7001/api/docs`).
 
 ## Convenciones generales
 
@@ -93,7 +93,7 @@ Respuesta: `data` con la página y `pagination: { total, page, limit, total_page
 | 403 | Sin permiso (`No tienes permiso para realizar esta acción.`), cambio de contraseña pendiente, jerarquía (rol por encima del propio), Configuración reservada al Super Administrador |
 | 404 | Registro inexistente, o fuera del alcance jerárquico (no se revela que existe) |
 | 409 | Duplicado: rol, novedad, usuario (`usuario` o `correo`), permiso rol + menú + acción, menú (nombre, ruta u orden). Solo cuentan los registros no eliminados ([02](02-base-de-datos.md#tablas)) |
-| 422 | Soporte: la sentencia no es un UPDATE permitido o parece del otro motor ([10-soporte](10-soporte.md)) |
+| 422 | Soporte: la sentencia no es un UPDATE/INSERT permitido, mezcla UPDATE e INSERT o parece del otro motor ([10-soporte](10-soporte.md)) |
 | 429 | Límite excedido: intentos fallidos de login / recuperar contraseña, o ejecuciones por minuto de Soporte ([abajo](#429-límite-excedido)) |
 | 500 | Error no controlado (incluye la espera de más de 30 s en `/soporte/:id/ejecutar`) |
 
@@ -377,7 +377,7 @@ El informe incluye los registros de soporte eliminados (borrado lógico). En el 
 | `idNovedad` | entero, obligatorio | opcional |
 | `mensajeWhatsapp` | texto, obligatorio, 3–255 | opcional, 3–255 |
 | `motor` | `mysql` \| `postgres` | opcional |
-| `sentencia` | texto, obligatorio, 3–5000; debe ser UPDATE permitido | opcional, misma regla (se revalida con el motor final) |
+| `sentencia` | texto, obligatorio, 3–5000; debe ser solo UPDATE con WHERE o solo INSERT limpios | opcional, misma regla (se revalida con el motor final) |
 | `estadoRegistro` | — | opcional |
 
 Ejecución (`POST /:id/ejecutar`):

@@ -1,14 +1,19 @@
 /**
- * Regla rígida de Soporte: solo se ejecutan sentencias UPDATE con cláusula WHERE. Una
- * solicitud puede traer varias (ej. un script de DBeaver con comentarios entre ellas):
- * se separan por `;` y se valida cada una. Se valida al crear, al editar y otra vez justo
- * antes de ejecutar.
+ * Regla rígida de Soporte: solo se ejecutan sentencias UPDATE con cláusula WHERE o INSERT
+ * limpios (`INSERT INTO tabla (columnas) VALUES (...)`). Una solicitud puede traer varias
+ * (ej. un script de DBeaver con comentarios entre ellas): se separan por `;` y se valida
+ * cada una. Se valida al crear, al editar y otra vez justo antes de ejecutar.
  *
  * Criterio:
  *  - Se separa por `;` fuera de textos ('...', "...", `...`) y comentarios (--, #, /* *\/).
- *  - Cada sentencia debe empezar por UPDATE (se ignoran los comentarios iniciales).
- *  - Cada una debe tener WHERE en su nivel principal (no en un texto, comentario ni
+ *  - Cada sentencia debe empezar por UPDATE o INSERT (se ignoran los comentarios iniciales).
+ *  - Una solicitud es solo de UPDATE o solo de INSERT: si se mezclan, se rechaza completa.
+ *  - UPDATE: debe tener WHERE en su nivel principal (no en un texto, comentario ni
  *    subconsulta): nunca un UPDATE sobre toda la tabla.
+ *  - INSERT: solo `INSERT INTO tabla (columnas) VALUES (...)[, (...)]` con valores escritos. Se
+ *    rechaza lo que inserta filas no visibles (SELECT), modifica registros existentes
+ *    (ON DUPLICATE KEY UPDATE, ON CONFLICT, REPLACE), oculta errores (IGNORE) o devuelve
+ *    datos (RETURNING).
  *  - Se rechazan los comentarios ejecutables de MySQL (`/*! ... *\/`), que ejecutan su contenido.
  *  - Se rechaza la sentencia que trae rasgos del otro motor (ver `esDeOtroMotor`): `base.tabla`
  *    y `esquema.tabla` se escriben igual, así que sin esto se conectaría al motor equivocado.
@@ -34,15 +39,15 @@ export interface ValidacionSentencia {
   mensaje: string | null;
 }
 
-/** Forma exigida por motor para el nombre de la tabla del UPDATE. */
+/** Forma exigida por motor para el nombre de la tabla de la sentencia. */
 const FORMA_TABLA: Record<MotorSentencia, { falta: string; ejemplo: string }> = {
   mysql: { falta: 'la base de datos', ejemplo: 'base.tabla (ej. miosv2_falabella_2024.promises)' },
   postgres: { falta: 'el esquema', ejemplo: 'esquema.tabla (ej. public.promises)' },
 };
 
 const IDENTIFICADOR = '(?:`[^`]+`|"[^"]+"|[A-Za-z0-9_$]+)';
-const TABLA_DEL_UPDATE = new RegExp(
-  `^UPDATE\\s+(?:(?:LOW_PRIORITY|IGNORE|ONLY)\\s+)*(${IDENTIFICADOR}(?:\\s*\\.\\s*${IDENTIFICADOR})*)`,
+const TABLA_DE_LA_SENTENCIA = new RegExp(
+  `^(?:UPDATE\\s+(?:(?:LOW_PRIORITY|IGNORE|ONLY)\\s+)*|INSERT\\s+INTO\\s+)(${IDENTIFICADOR}(?:\\s*\\.\\s*${IDENTIFICADOR})*)`,
   'i',
 );
 
@@ -61,12 +66,12 @@ function quitarComentariosIniciales(sql: string): string {
   }
 }
 
-/** Nombre de la tabla del UPDATE tal como se escribió (con comillas si las trae), o null. */
+/** Nombre de la tabla de la sentencia tal como se escribió (con comillas si las trae), o null. */
 function nombreTabla(sentencia: string): string | null {
-  return quitarComentariosIniciales(sentencia).match(TABLA_DEL_UPDATE)?.[1] ?? null;
+  return quitarComentariosIniciales(sentencia).match(TABLA_DE_LA_SENTENCIA)?.[1] ?? null;
 }
 
-/** Partes del nombre de la tabla del UPDATE, sin comillas (ej. ["miosv2_falabella_2024", "promises"]). */
+/** Partes del nombre de la tabla de la sentencia, sin comillas (ej. ["miosv2_falabella_2024", "promises"]). */
 function partesTabla(sentencia: string): string[] {
   const nombre = nombreTabla(sentencia);
   if (!nombre) {
@@ -90,7 +95,7 @@ export function extraerBaseDeDatos(sentencia: string, motor: MotorSentencia): st
   return partes.length === 3 ? partes[0] : null;
 }
 
-const TITULO_REGLA = 'Solo se permiten sentencias UPDATE con WHERE.';
+const TITULO_REGLA = 'Solo se permiten sentencias UPDATE con WHERE o INSERT INTO ... VALUES.';
 
 /** Separa por `;` fuera de textos y comentarios; descarta los fragmentos que solo tienen comentarios. */
 export function separarSentencias(sql: string): string[] {
@@ -208,15 +213,55 @@ function esDeOtroMotor(sentencia: string, motor: MotorSentencia): boolean {
   );
 }
 
-/** Motivo por el que una sentencia no se permite, o null si es un UPDATE con WHERE. */
+/** Primera palabra del código (ej. 'UPDATE', 'INSERT'), en mayúsculas, o null. */
+function tipoSentencia(sentencia: string): string | null {
+  return soloCodigo(sentencia).trimStart().match(/^[A-Za-z]+/)?.[0]?.toUpperCase() ?? null;
+}
+
+/**
+ * Forma exacta del INSERT limpio sobre el nivel principal (lo de dentro de los paréntesis ya
+ * viene en blanco): `INSERT INTO tabla ( ) VALUES ( ) [, ( )]...`.
+ */
+const FORMA_INSERT = /^\s*INSERT\s+INTO\s+[^()]+\(\s*\)\s*VALUES\s*\(\s*\)(?:\s*,\s*\(\s*\))*\s*$/i;
+
+/** Motivo por el que un INSERT no es limpio, o null si lo es. */
+function motivoRechazoInsert(codigo: string): string | null {
+  const principal = nivelPrincipal(codigo);
+  if (!/^\s*INSERT\s+INTO\b/i.test(principal)) {
+    return /^\s*INSERT\s+(?:LOW_PRIORITY\s+|DELAYED\s+|HIGH_PRIORITY\s+)*IGNORE\b/i.test(principal)
+      ? 'usa INSERT IGNORE, que oculta los errores; retira IGNORE.'
+      : 'debe escribirse como INSERT INTO tabla (columnas) VALUES (...).';
+  }
+  if (/\bSELECT\b/i.test(codigo)) {
+    return 'trae un SELECT; solo se permiten valores escritos en VALUES.';
+  }
+  if (/\bON\s+(?:DUPLICATE|CONFLICT)\b/i.test(principal)) {
+    return 'modifica registros existentes (ON DUPLICATE KEY UPDATE / ON CONFLICT); retira esa cláusula.';
+  }
+  if (/\bRETURNING\b/i.test(principal)) {
+    return 'usa RETURNING; retira esa cláusula.';
+  }
+  if (!/^\s*INSERT\s+INTO\s+[^()]+\(\s*\)\s*VALUES\b/i.test(principal)) {
+    return 'debe indicar la lista de columnas: INSERT INTO tabla (columnas) VALUES (...).';
+  }
+  if (!FORMA_INSERT.test(principal)) {
+    return 'debe tener solo la forma INSERT INTO tabla (columnas) VALUES (...).';
+  }
+  return null;
+}
+
+/** Motivo por el que una sentencia no se permite, o null si es un UPDATE con WHERE o un INSERT limpio. */
 function motivoRechazo(sentencia: string): string | null {
   const codigo = soloCodigo(sentencia);
-  const tipo = codigo.trimStart().match(/^[A-Za-z]+/)?.[0]?.toUpperCase() ?? null;
-  if (tipo !== 'UPDATE') {
-    return tipo ? `es un ${tipo}; ajústala a un UPDATE.` : 'no se reconoce el tipo de sentencia.';
+  const tipo = tipoSentencia(sentencia);
+  if (tipo !== 'UPDATE' && tipo !== 'INSERT') {
+    return tipo ? `es un ${tipo}; ajústala a un UPDATE o a un INSERT.` : 'no se reconoce el tipo de sentencia.';
   }
   if (/\/\*[!+]/.test(sentencia)) {
     return 'contiene comentarios ejecutables (/*! */); retíralos.';
+  }
+  if (tipo === 'INSERT') {
+    return motivoRechazoInsert(codigo);
   }
   if (!tieneWherePrincipal(codigo)) {
     return 'no tiene cláusula WHERE para limitar los registros a actualizar.';
@@ -229,7 +274,7 @@ function motivoRechazo(sentencia: string): string | null {
  * de cada sentencia en `bases`. En PostgreSQL las que la indiquen deben ser la misma (una
  * conexión es de una sola base); en MySQL pueden ser distintas bases del mismo servidor.
  */
-export function validarSentenciaUpdate(sql: string, motor?: MotorSentencia): ValidacionSentencia {
+export function validarSentencia(sql: string, motor?: MotorSentencia): ValidacionSentencia {
   const rechazo = (mensaje: string): ValidacionSentencia => ({ valida: false, sentencias: [], bases: [], mensaje });
   const sentencias = separarSentencias(sql ?? '');
   if (!sentencias.length) {
@@ -241,6 +286,13 @@ export function validarSentenciaUpdate(sql: string, motor?: MotorSentencia): Val
     const motivo = motivoRechazo(sentencia);
     if (motivo) {
       return rechazo(`${TITULO_REGLA}\n${cual} ${motivo}`);
+    }
+    const tipo = tipoSentencia(sentencia);
+    const primerTipo = tipoSentencia(sentencias[0]);
+    if (tipo !== primerTipo) {
+      return rechazo(
+        `No se pueden mezclar UPDATE e INSERT en una misma solicitud.\n${cual} es un ${tipo}, pero la solicitud empieza con ${primerTipo}. Envía solo UPDATE o solo INSERT.`,
+      );
     }
     if (motor) {
       if (esDeOtroMotor(sentencia, motor)) {

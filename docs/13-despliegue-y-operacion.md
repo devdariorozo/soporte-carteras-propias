@@ -9,16 +9,18 @@
 
 - Cada ambiente tiene contenedores, imágenes, red y volumen propios. Desarrollo usa el prefijo `soporte-carteras-propias-dev-` (ej. `soporte-carteras-propias-dev-api`). Reconstruir desarrollo nunca toca QA/PRO.
 - QA y PRO usan el mismo archivo, cada uno en su servidor con su propio `backend/.env`. Lo que cambia es `DB_NAME`, secretos y superadmin.
-- Los dos ambientes publican 3000 y 3001: en una misma máquina corre uno a la vez.
+- Cada ambiente publica sus propios puertos (desarrollo 60xx/336x, QA/PRO 700x/337x): pueden correr a la vez en una misma máquina.
 
 ### Qué publica cada uno
 
 | Servicio | Desarrollo (`docker-compose-dev.yml`) | QA / PRO (`docker-compose.yml`) |
 |---|---|---|
-| `mysql` | `3307:3306` (todas las interfaces) | `127.0.0.1:3307:3306` (solo esta máquina) |
-| `redis` | `6380:6379` | No se publica |
-| `api` | `3000:3000` | `3000:3000` |
-| `web` | `3001:80` | `3001:80` |
+| `web` | `6001:80` | `7001:80` |
+| `api` | `6002:3000` | `7002:3000` |
+| `mysql` | `3360:3306` (todas las interfaces) | `127.0.0.1:3371:3306` (solo esta máquina) |
+| `redis` | `3361:6379` | `127.0.0.1:3372:6379` (solo esta máquina; Redis no tiene contraseña) |
+
+Dentro del contenedor la API siempre escucha en 3000: Compose fija `PORT: 3000` y nginx reenvía a `api:3000`. El `PORT=6002` de `backend/.env` solo aplica al correr la API sin Docker.
 
 ### Diferencias
 
@@ -42,15 +44,15 @@ Dependencias de arranque: `api` espera a `mysql` *healthy* (`mysqladmin ping` ca
 
 | Variable | Propósito | Ejemplo / valor por defecto |
 |---|---|---|
-| `PORT` | Puerto de la API | `3000` |
+| `PORT` | Puerto de la API sin Docker (en Docker se fuerza 3000) | `6002` |
 | `DB_HOST` | Host de MySQL. Tradicional: `localhost`. Docker: lo fuerza Compose a `mysql` | `localhost` |
-| `DB_PORT` | Puerto de MySQL. Tradicional: `3307`. Docker: `3306` (forzado) | `3307` |
+| `DB_PORT` | Puerto de MySQL. Tradicional: `3360` (dev). Docker: `3306` (forzado) | `3360` |
 | `DB_USER` | Usuario de MySQL. En Docker debe ser `root`: el contenedor solo crea `root` | `root` |
 | `DB_PASSWORD` | Contraseña de MySQL y `MYSQL_ROOT_PASSWORD` del contenedor. No puede quedar vacía con Docker: la imagen `mysql` no inicializa sin contraseña root | `'TU_PASSWORD_AQUI'` |
 | `DB_POOL_SIZE` | Conexiones del pool de TypeORM | `10` |
 | `DB_NAME` | Base del ambiente | `dbd_` / `dbq_` / `dbp_soporte_carteras_propias` |
 | `REDIS_HOST` | Host de Redis. Tradicional: `localhost`. Docker: `redis` (forzado) | `localhost` |
-| `REDIS_PORT` | Puerto de Redis. Tradicional: `6380` (el 6379 del host puede tener un Redis nativo). Docker: `6379` (forzado) | `6380` |
+| `REDIS_PORT` | Puerto de Redis. Tradicional: `3361` (dev). Docker: `6379` (forzado) | `3361` |
 | `JWT_ACCESS_SECRET` | Firma del access token. Uno por ambiente (`openssl rand -hex 48`) | `TU_SECRETO_ACCESS_AQUI` |
 | `JWT_REFRESH_SECRET` | Firma del refresh token. Distinto del de access | `TU_SECRETO_REFRESH_AQUI` |
 | `JWT_ACCESS_EXPIRES_IN` | Vida del access token | `15m` |
@@ -66,7 +68,7 @@ Dependencias de arranque: `api` espera a `mysql` *healthy* (`mysqladmin ping` ca
 | `SEED_SUPERADMIN_CORREO` | Correo. Obligatoria | `admin@ejemplo.com` |
 | `SEED_SUPERADMIN_PASSWORD` | Contraseña inicial. Se pide cambiarla al entrar. Obligatoria | `'TU_PASSWORD_AQUI'` |
 | `SSH_KEY_PATH` | Ruta **en esta máquina** de la llave privada del bastión (PostgreSQL por túnel). Tradicional: la API la lee directo. Docker: se monta en `/run/secrets/bastion_key:ro` | `/home/usuario/.ssh/bastion_key` |
-| `CORS_ORIGENES` | `*` = cualquier origen. Si no, URLs separadas por coma. Vacío = ningún origen cruzado | `http://localhost:4200` |
+| `CORS_ORIGENES` | `*` = cualquier origen. Si no, URLs separadas por coma. Vacío = ningún origen cruzado | `http://localhost:6001,http://localhost:4200` |
 
 Las `SEED_SUPERADMIN_*` solo se usan al crear el Super Administrador (base nueva). Ver [02](02-base-de-datos.md#seed-backendsrcdatabaseseedsrun-seedts).
 
@@ -121,17 +123,17 @@ Si la migración o el seed fallan, el contenedor sale y Compose lo reinicia (`un
 - Cabeceras en todas las respuestas: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer-when-downgrade`.
 - El frontend llama siempre a `/api` en su mismo origen (`environment.apiUrl = ''`). La misma imagen sirve en cualquier servidor sin configurar la URL de la API.
 - Tras un despliegue, un archivo con hash viejo da 404 y la app se recarga una vez sola (`recarga-version.util.ts`).
-- En `ng serve`, `frontend/proxy.conf.json` hace lo mismo hacia `http://localhost:3000`.
+- En `ng serve`, `frontend/proxy.conf.json` hace lo mismo hacia `http://localhost:6002`.
 
 ## CORS
 
 `backend/src/common/cors/opciones-cors.util.ts`, aplicado en `main.ts`.
 
 - `CORS_ORIGENES=*` acepta cualquier origen.
-- Si no, lista separada por coma (ej. `http://localhost:3001,http://localhost:4200`). A cada URL se le quitan espacios y `/` final.
+- Si no, lista separada por coma (ej. `http://localhost:6001,http://localhost:4200`; en QA/PRO `http://<servidor>:7001`). A cada URL se le quitan espacios y `/` final.
 - Vacío o sin definir = se deniega todo origen cruzado (falla cerrado).
 - Métodos permitidos fijos: `GET, POST, PATCH, DELETE, OPTIONS`. Cabeceras: `Content-Type, Authorization`.
-- No necesitan estar en la lista la app servida por nginx, `ng serve` con su proxy ni el túnel Cloudflared: todos llaman a `/api` en su mismo origen. Sí la necesita un origen que llame directo a `:3000` desde el navegador.
+- No necesitan estar en la lista la app servida por nginx, `ng serve` con su proxy ni el túnel Cloudflared: todos llaman a `/api` en su mismo origen. Sí la necesita un origen que llame directo a la API (`:6002` / `:7002`) desde el navegador.
 - Tras cambiarlo, recrear la API:
   - Desarrollo: `docker compose --env-file backend/.env -f docker-compose-dev.yml up -d api`
   - QA/PRO: `docker compose --env-file backend/.env up -d api`
@@ -165,7 +167,7 @@ docker image rm soporte-carteras-propias-api soporte-carteras-propias-web       
 
 - **Los datos no se pierden** al bajar/levantar contenedores, reconstruir imágenes o borrarlas: viven en el volumen de MySQL de cada ambiente (`soporte-carteras-propias-dev-mysql-data` / `soporte-carteras-propias-mysql-data`). Solo `down -v`, `docker volume rm` o `schema:drop` los borran. Al arrancar, migración y seed solo aplican lo que falte.
 - No se usa `down --rmi all`: también borraría las imágenes de `mysql` y `redis`, compartidas por ambos ambientes.
-- Los dos ambientes publican los mismos puertos (MySQL en `localhost:3307`): DBeaver solo ve la base del ambiente levantado; la del otro sigue en su volumen.
+- Cada ambiente publica su MySQL en un puerto distinto (desarrollo `localhost:3360`, QA/PRO `localhost:3371`): DBeaver puede ver ambas bases a la vez.
 
 Migraciones, seed, consola MySQL y reconstrucción de la base: [02-base-de-datos](02-base-de-datos.md#comandos).
 
@@ -177,18 +179,18 @@ MySQL y Redis siguen en Docker (los de desarrollo). La API y el frontend corren 
 # 1. Infraestructura
 docker compose --env-file backend/.env -f docker-compose-dev.yml up -d mysql redis
 
-# 2. API (backend/.env con DB_HOST=localhost, DB_PORT=3307, REDIS_HOST=localhost, REDIS_PORT=6380)
-cd backend && npm install && npm run migration:run && npm run seed && npm run start:dev   # :3000
+# 2. API (backend/.env con PORT=6002, DB_HOST=localhost, DB_PORT=3360, REDIS_HOST=localhost, REDIS_PORT=3361)
+cd backend && npm install && npm run migration:run && npm run seed && npm run start:dev   # :6002
 
-# 3. Frontend (ng serve con proxy /api -> localhost:3000)
+# 3. Frontend (ng serve con proxy /api -> localhost:6002)
 cd frontend && npm install && npm start                                                  # :4200
 ```
 
-No levantar a la vez el contenedor `api` de desarrollo: usa el puerto 3000 y su worker compartiría la cola en Redis.
+No levantar a la vez el contenedor `api` de desarrollo: usa el puerto 6002 y su worker compartiría la cola en Redis.
 
 ## Conectarse desde DBeaver (base del sistema)
 
-Conexión **MySQL directa** a `localhost:3307` en todos los ambientes. No se usa túnel SSH. En una máquina corre un ambiente a la vez.
+Conexión **MySQL directa** al puerto del ambiente: desarrollo `localhost:3360`, QA/PRO `localhost:3371` (desde el propio servidor, solo escucha en `127.0.0.1`). No se usa túnel SSH.
 
 | Ambiente | Base |
 |---|---|
@@ -196,7 +198,7 @@ Conexión **MySQL directa** a `localhost:3307` en todos los ambientes. No se usa
 | QA | `dbq_soporte_carteras_propias` |
 | PRO | `dbp_soporte_carteras_propias` |
 
-- Host `localhost`, puerto `3307`, usuario y contraseña: `DB_USER` / `DB_PASSWORD` de `backend/.env`.
+- Host `localhost`, puerto `3360` (dev) o `3371` (QA/PRO), usuario y contraseña: `DB_USER` / `DB_PASSWORD` de `backend/.env`.
 - Driver properties: `allowPublicKeyRetrieval=true`, `useSSL=false`.
 - En QA/PRO MySQL escucha solo en `127.0.0.1`: accesible desde esa misma máquina, no desde la red.
 
@@ -206,8 +208,8 @@ URL pública temporal `https://<aleatorio>.trycloudflare.com`, sin abrir puertos
 
 | Modo | Comando | Nota |
 |---|---|---|
-| Docker (nginx) | `cloudflared tunnel --url http://localhost:3001` | nginx sirve la app y `/api`: todo en el mismo origen |
-| Tradicional (`ng serve`) | `cloudflared tunnel --url http://localhost:4200` | `frontend/angular.json` permite el host (`serve.options.allowedHosts: [".trycloudflare.com"]`) y el proxy lleva `/api` a `:3000` |
+| Docker (nginx) | `cloudflared tunnel --url http://localhost:6001` (QA/PRO: `:7001`) | nginx sirve la app y `/api`: todo en el mismo origen |
+| Tradicional (`ng serve`) | `cloudflared tunnel --url http://localhost:4200` | `frontend/angular.json` permite el host (`serve.options.allowedHosts: [".trycloudflare.com"]`) y el proxy lleva `/api` a `:6002` |
 
 No requiere tocar `CORS_ORIGENES`. La URL cambia en cada ejecución y el túnel muere al cerrar el comando.
 
@@ -228,7 +230,7 @@ docker compose --env-file backend/.env exec -T mysql sh -c 'mysql -uroot -p"$DB_
 
 1. Copiar `backend/.env.example` a `backend/.env` y llenar: `DB_PASSWORD`, `DB_NAME` del ambiente, los dos `JWT_*_SECRET`, las `SEED_SUPERADMIN_*`, `CORS_ORIGENES` y, si se usa PostgreSQL por bastión, `SSH_KEY_PATH`.
 2. `build` + `up -d` del ambiente (ver [Comandos](#comandos)). El primer arranque crea la base, corre la migración y el seed.
-3. Abrir la app (`http://localhost:3001/login`) y entrar con el documento y la contraseña de `SEED_SUPERADMIN_*`. El sistema pide cambiar la contraseña y definir el secreto de recuperación.
+3. Abrir la app (`http://localhost:6001/login` en desarrollo, `http://<servidor>:7001/login` en QA/PRO) y entrar con el documento y la contraseña de `SEED_SUPERADMIN_*`. El sistema pide cambiar la contraseña y definir el secreto de recuperación.
 4. **Configuración:** en `mysql` / `postgres`, reemplazar los datos ficticios por los del servidor de las carteras (PostgreSQL por bastión: [09-configuracion](09-configuracion.md)).
 5. **Administración:** usuarios, roles y permisos.
 6. **Soporte:** registrar el caso y **Registrar y ejecutar**. Con MySQL (Carteras Propias V1), la VPN corporativa debe estar conectada en la máquina del contenedor `api`.
@@ -248,12 +250,12 @@ docker compose --env-file backend/.env exec -T mysql sh -c 'mysql -uroot -p"$DB_
 | Login o Recuperar: "Demasiados intentos fallidos. Intenta de nuevo en N minutos." | Se agotaron `LOGIN_MAX_INTENTOS` en `LOGIN_VENTANA_MINUTOS`. Esperar, o desbloquear: `docker compose --env-file backend/.env [-f docker-compose-dev.yml] exec redis redis-cli DEL rate_limit:auth:login:<usuario>` (`recuperar` en vez de `login` para Recuperar contraseña) |
 | Soporte PostgreSQL: "El servidor PostgreSQL rechazó la conexión desde este servidor (puede exigir conexión cifrada)" | En el log `no pg_hba.conf entry … no encryption`: poner `"ssl": true` en la conexión `postgres`. Si persiste, el servidor no autoriza la IP de `api`: pedir al DBA la regla en `pg_hba.conf`, o usar el túnel (`ssh_*`) |
 | Soporte: "La sentencia parece de MySQL/PostgreSQL, pero el motor elegido es…" | Se eligió el motor equivocado para la sentencia ([10-soporte](10-soporte.md#reglas-de-la-sentencia), regla 7) |
-| En DBeaver no aparece la base de un ambiente | Está levantado el otro ambiente (mismo puerto 3307); la base sigue en su volumen |
+| En DBeaver no aparece la base de un ambiente | Revisar el puerto: desarrollo `3360`, QA/PRO `3371` (solo desde el servidor) y que el ambiente esté levantado |
 | Pantalla no carga tras desplegar | Pestaña con versión vieja: Ctrl + Shift + R |
 | `port is already allocated` al levantar | El otro ambiente (o `npm run start:dev` / `ng serve`) está usando el puerto: bajarlo primero |
 | CORS bloquea peticiones | El origen no está en `CORS_ORIGENES` (recrear `api` tras cambiarlo) |
 | La sesión se cierra sola al entrar en otro equipo o pestaña privada | Sesión única por usuario: el login más reciente reemplaza al anterior ([03](03-autenticacion-y-sesion.md)) |
-| Salud de la API | `curl http://localhost:3000/api/health` → `status: ok` |
+| Salud de la API | `curl http://localhost:6002/api/health` (QA/PRO: `:7002`) → `status: ok` |
 
 ## Pruebas
 
@@ -265,7 +267,7 @@ Backend (`backend/`, Vitest):
 | `npm run test:e2e` | `vitest.config.e2e.ts` (`**/*.e2e-spec.ts`) | `test/app.e2e-spec.ts` (health) y `test/flujo-completo.e2e-spec.ts` (login → novedad → soporte → ejecutar → informes) |
 
 Requisitos de las e2e:
-- Corren en el host contra la base y el Redis de `backend/.env`: `DB_HOST=localhost`, `DB_PORT=3307`, `REDIS_HOST=localhost`, `REDIS_PORT=6380`.
+- Corren en el host contra la base y el Redis de `backend/.env`: `DB_HOST=localhost`, `DB_PORT=3360`, `REDIS_HOST=localhost`, `REDIS_PORT=3361`.
 - `mysql` y `redis` levantados, con la migración y el seed ya corridos.
 - El Super Administrador debe poder entrar con `SEED_SUPERADMIN_DOCUMENTO` / `SEED_SUPERADMIN_PASSWORD`.
 - Detener antes el contenedor `api`, porque comparte Redis y su worker tomaría los trabajos de la cola: `docker compose --env-file backend/.env -f docker-compose-dev.yml stop api`.

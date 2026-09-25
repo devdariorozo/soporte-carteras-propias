@@ -1,6 +1,6 @@
 # 10 · Soporte
 
-Registra un caso reportado por WhatsApp y ejecuta su sentencia `UPDATE` contra el servidor de la cartera (MySQL o PostgreSQL). Cada caso queda en la tabla `soporte` con su estado y el mensaje de resultado, y se consulta en [11-informes](11-informes.md).
+Registra un caso reportado por WhatsApp y ejecuta su sentencia (`UPDATE` o `INSERT`) contra el servidor de la cartera (MySQL o PostgreSQL). Cada caso queda en la tabla `soporte` con su estado y el mensaje de resultado, y se consulta en [11-informes](11-informes.md).
 
 ## Acceso
 
@@ -32,12 +32,33 @@ El rol Desarrollador(a) tiene Crear, Editar y Consultar sobre Soporte (no Elimin
 
 ## Reglas de la sentencia
 
-Rígidas en backend (`backend/src/common/sql/sentencia-update.util.ts`); el formulario aplica la misma regla mientras se escribe (`frontend/src/app/core/utils/sentencia.util.ts`) y muestra la advertencia **amarilla** antes de enviar. Sin motor elegido solo valida UPDATE/WHERE; al elegirlo, también la forma de la tabla.
+Rígidas en backend (`backend/src/common/sql/sentencia.util.ts`); el formulario aplica la misma regla mientras se escribe (`frontend/src/app/core/utils/sentencia.util.ts`) y muestra la advertencia **amarilla** antes de enviar. Sin motor elegido solo valida la regla UPDATE/INSERT; al elegirlo, también la forma de la tabla.
 
-1. **Solo `UPDATE`.** SELECT, INSERT, DELETE, DROP, WITH, etc. se rechazan (`es un DELETE; ajústala a un UPDATE.`).
-2. **Uno o varios UPDATE** separados por `;`. El `;` dentro de textos (`'…'`, `"…"`, `` `…` ``) o comentarios (`--`, `#`, `/* */`) no separa. Se admiten comentarios (ej. scripts de DBeaver); fragmentos con solo comentarios se descartan.
+1. **Solo `UPDATE` o `INSERT`.** SELECT, DELETE, REPLACE, DROP, WITH, etc. se rechazan (`es un DELETE; ajústala a un UPDATE o a un INSERT.`).
+2. **Uno o varios**, separados por `;`, **todos del mismo tipo**: solo UPDATE o solo INSERT. Si se mezclan se rechaza la solicitud completa (`No se pueden mezclar UPDATE e INSERT en una misma solicitud.`). El `;` dentro de textos (`'…'`, `"…"`, `` `…` ``) o comentarios (`--`, `#`, `/* */`) no separa. Se admiten comentarios (ej. scripts de DBeaver); fragmentos con solo comentarios se descartan.
 3. **Cada UPDATE con `WHERE`** en su nivel principal: no vale uno dentro de un texto, un comentario o una subconsulta `( … )`.
-4. **Forma de la tabla del UPDATE** según el motor (en MySQL se admiten `LOW_PRIORITY`, `IGNORE` y nombres entre `` ` ``; en PostgreSQL, `ONLY` y nombres entre `"`):
+4. **Cada INSERT limpio:** solo `INSERT INTO tabla (columnas) VALUES (…)[, (…)]`, con la lista de columnas y valores escritos (se admiten funciones como `NOW()` y casts como `::enum`). Se rechaza:
+
+   | Se rechaza | Por qué | Mensaje |
+   |---|---|---|
+   | `INSERT … SELECT` o subconsulta en `VALUES` | Inserta filas que no se ven en el script | `trae un SELECT; solo se permiten valores escritos en VALUES.` |
+   | `ON DUPLICATE KEY UPDATE` (MySQL), `ON CONFLICT …` (PostgreSQL) | Modifica registros existentes (un UPDATE sin WHERE) o descarta el INSERT sin error | `modifica registros existentes (…); retira esa cláusula.` |
+   | `INSERT IGNORE` | Oculta los errores: el caso quedaría Completado sin insertar | `usa INSERT IGNORE, que oculta los errores; retira IGNORE.` |
+   | `REPLACE INTO` | Borra la fila existente y la vuelve a crear | `es un REPLACE; ajústala a un UPDATE o a un INSERT.` |
+   | `RETURNING` | Devuelve datos | `usa RETURNING; retira esa cláusula.` |
+   | Sin lista de columnas, `INSERT … SET`, `DEFAULT VALUES` | Los datos pueden caer en la columna equivocada | `debe indicar la lista de columnas: …` |
+   | `INSERT` sin `INTO` | Forma no reconocida | `debe escribirse como INSERT INTO tabla (columnas) VALUES (...).` |
+
+   ```sql
+   -- MySQL
+   INSERT INTO miosv2_carteras_QA.campaign_users (campaign_id,user_id,is_active,user_admin)
+       VALUES (1,1111,1,1);
+   -- PostgreSQL
+   INSERT INTO tenant_bbva.clients (first_name,identification,judicial_status)
+       VALUES ('usuario','12322556566565','comercializado'::tenant_bbva."clients_judicial_status_enum");
+   ```
+
+5. **Forma de la tabla** (UPDATE o INSERT) según el motor (en MySQL se admiten nombres entre `` ` `` y, en el UPDATE, `LOW_PRIORITY` e `IGNORE`; en PostgreSQL, nombres entre `"` y, en el UPDATE, `ONLY`):
 
    | Motor | Forma | Base de datos | Ejemplo |
    |---|---|---|---|
@@ -54,9 +75,9 @@ Rígidas en backend (`backend/src/common/sql/sentencia-update.util.ts`); el form
        WHERE id = 5;
    ```
 
-5. **PostgreSQL: una sola base** (una conexión es de una sola base): las sentencias que indiquen base deben coincidir entre sí y con la configuración. En MySQL pueden ser bases distintas del mismo servidor.
-6. Se rechazan los comentarios ejecutables de MySQL `/*! */` y los hints `/*+ */`.
-7. **La sentencia debe ser del motor elegido.** `base.tabla` (MySQL) y `esquema.tabla` (PostgreSQL) se escriben igual, así que sin esta regla se conectaría al servidor equivocado y el error sería de conexión o de tabla inexistente. Se rechaza antes de conectar si la sentencia trae un rasgo del otro motor:
+6. **PostgreSQL: una sola base** (una conexión es de una sola base): las sentencias que indiquen base deben coincidir entre sí y con la configuración. En MySQL pueden ser bases distintas del mismo servidor.
+7. Se rechazan los comentarios ejecutables de MySQL `/*! */` y los hints `/*+ */`.
+8. **La sentencia debe ser del motor elegido.** `base.tabla` (MySQL) y `esquema.tabla` (PostgreSQL) se escriben igual, así que sin esta regla se conectaría al servidor equivocado y el error sería de conexión o de tabla inexistente. Se rechaza antes de conectar si la sentencia trae un rasgo del otro motor:
 
    | Motor elegido | Se rechaza si la sentencia trae |
    |---|---|
@@ -132,7 +153,7 @@ Errores HTTP que no cambian el estado y se muestran como aviso: **422** sentenci
 
 - El rollback es completo en PostgreSQL y en tablas **InnoDB** de MySQL (MyISAM no es transaccional).
 - La VPN que cuenta es la del equipo o servidor donde corre la API (en Docker, el contenedor `api`).
-- **`/ejecutar` no valida el estado actual:** por API se puede volver a ejecutar un caso Completado (re-aplica el UPDATE) o uno En proceso. La pantalla solo ofrece reintentar desde Error.
+- **`/ejecutar` no valida el estado actual:** por API se puede volver a ejecutar un caso Completado (re-aplica el UPDATE o vuelve a intentar el INSERT) o uno En proceso. La pantalla solo ofrece reintentar desde Error.
 - **Timeout de 30 s:** si la ejecución no termina en ese tiempo, la API responde error genérico (500), pero el job sigue en la cola: el caso queda En proceso y termina en Completado o Error cuando el worker acabe. La pantalla pierde la referencia; revisar el resultado en Informes antes de volver a registrar.
 - Eliminar (`DELETE`) es lógico: descripción `Eliminado.`, `estado_registro = 0`. Informes sigue mostrando los eliminados.
 
@@ -156,7 +177,7 @@ Errores HTTP que no cambian el estado y se muestran como aviso: **422** sentenci
 | Servicio (registro, clientes, ejecución, mensajes, rate limit) | `backend/src/modules/soporte/soporte.service.ts` |
 | Worker de la cola | `backend/src/modules/soporte/ejecucion.processor.ts`, `ejecucion.constants.ts` |
 | Entidad y estados | `backend/src/modules/soporte/soporte.entity.ts` |
-| Validación de sentencias | `backend/src/common/sql/sentencia-update.util.ts` |
+| Validación de sentencias | `backend/src/common/sql/sentencia.util.ts` (pruebas: `sentencia.util.spec.ts`) |
 | Conexiones crudas y túnel | `backend/src/common/raw-db/` (`raw-mysql.service.ts`, `raw-postgres.service.ts`, `tunel-ssh.ts`, `error-sentencia.ts`) |
 | Pantalla | `frontend/src/app/features/soporte/` |
 | Validación en vivo | `frontend/src/app/core/utils/sentencia.util.ts` |

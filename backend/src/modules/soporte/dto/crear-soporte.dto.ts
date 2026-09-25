@@ -25,7 +25,8 @@ export class CrearSoporteDto {
   motor: MotorSoporte;
 
   @ApiProperty({
-    description: 'Sentencia SQL tal cual se va a ejecutar, ya calificada con esquema.tabla.',
+    description:
+      'Sentencia SQL tal cual se va a ejecutar, ya calificada con esquema.tabla: solo UPDATE con WHERE o solo INSERT INTO tabla (columnas) VALUES (...), sin mezclarlos.',
     example: "UPDATE miosv2_falabella_2024.promises SET estado = 'pagada' WHERE id = 123;",
   })
   @IsString()

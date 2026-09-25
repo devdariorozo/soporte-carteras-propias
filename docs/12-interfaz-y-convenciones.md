@@ -182,7 +182,7 @@ Reglas de uso:
 | `core/utils/jerarquia-roles.util.ts` | `esSuperAdministrador`, `nivelRol`, `puedeGestionarRol`, `MENU_CONFIGURACION` | Ocultar acciones sobre roles/usuarios/permisos por encima del propio ([04-roles-y-jerarquia](04-roles-y-jerarquia.md)) |
 | `core/utils/motor.util.ts` | `MOTORES`, `etiquetaMotor` | `mysql` → MySQL, `postgres` → PostgreSQL |
 | `core/utils/limite-excedido.util.ts` | `esLimiteExcedido(error)` | ¿El error es un 429? Para mostrarlo como advertencia |
-| `core/utils/sentencia.util.ts` | `validarSentenciaUpdate`, `separarSentencias`, `extraerBaseDeDatos`, `advertenciaSentencia`, `sentenciaSegunMotorValidator` | Adelanta en el formulario de Soporte la regla del backend (`common/sql/sentencia-update.util.ts`) |
+| `core/utils/sentencia.util.ts` | `validarSentencia`, `separarSentencias`, `extraerBaseDeDatos`, `advertenciaSentencia`, `sentenciaSegunMotorValidator` | Adelanta en el formulario de Soporte la regla del backend (`common/sql/sentencia.util.ts`) |
 | `core/validators/password-strength.ts` | `REQUISITOS_PASSWORD`, `nivelPassword`, `passwordSeguraValidator` | Política de contraseña |
 
 ## Formularios
@@ -366,7 +366,7 @@ En cada pantalla:
 | Qué | Dónde | Valor |
 |---|---|---|
 | Comando | `frontend/package.json` | `npm start` (`ng serve`, configuración `development`), puerto 4200 |
-| Proxy | `frontend/proxy.conf.json` | `/api` → `http://localhost:3000` (`changeOrigin`, `secure: false`) |
+| Proxy | `frontend/proxy.conf.json` | `/api` → `http://localhost:6002` (`changeOrigin`, `secure: false`) |
 | Hosts permitidos | `frontend/angular.json` → `serve.options.allowedHosts` | `.trycloudflare.com` (túnel Cloudflared rápido) |
 | Ambiente | `src/environments/environment.ts` | `apiUrl: ''` |
 
@@ -378,7 +378,7 @@ Con el proxy, `ng serve` llama a `/api` en su mismo origen y no necesita CORS. S
 |---|---|---|
 | Build | `angular.json` (`production` por defecto) | `outputHashing: all`, reemplaza `environment.ts` por `environment.production.ts`; presupuestos: inicial 1 MB aviso / 2 MB error, estilos por componente 4 kB / 8 kB |
 | Imagen | `frontend/Dockerfile` | Etapa `node:22-alpine` (`npm ci`, `npm run build`) → etapa `nginx:alpine` con `dist/frontend/browser` |
-| Servidor | `frontend/nginx.conf` | Puerto 80 (publicado como 3001) |
+| Servidor | `frontend/nginx.conf` | Puerto 80 (publicado como 6001 en desarrollo y 7001 en QA/PRO) |
 
 `nginx.conf`:
 

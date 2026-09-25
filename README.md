@@ -1,12 +1,12 @@
 # Soporte Carteras Propias
 
-Sistema para registrar y resolver casos de soporte de las carteras propias: el equipo registra el caso del cliente, ejecuta la sentencia `UPDATE` que lo corrige contra la base de la cartera y obtiene el mensaje de cierre para el cliente, con control de acceso y trazabilidad.
+Sistema para registrar y resolver casos de soporte de las carteras propias: el equipo registra el caso del cliente, ejecuta la sentencia (`UPDATE` o `INSERT`) que lo corrige contra la base de la cartera y obtiene el mensaje de cierre para el cliente, con control de acceso y trazabilidad.
 
 Documentación detallada por funcionalidad: [`docs/`](docs/README.md).
 
 ## ¿Para qué es?
 
-- **Soporte:** registrar el caso (cliente, novedad, mensaje de WhatsApp, motor, sentencia) y ejecutarlo de forma segura: solo `UPDATE` con `WHERE`, en transacción (todo o nada).
+- **Soporte:** registrar el caso (cliente, novedad, mensaje de WhatsApp, motor, sentencia) y ejecutarlo de forma segura: solo `UPDATE` con `WHERE` o solo `INSERT INTO tabla (columnas) VALUES (...)` limpios (nunca mezclados), en transacción (todo o nada).
 - **Informes:** consultar, filtrar y exportar a Excel los casos, con la sentencia y el resultado de cada uno.
 - **Administración:** usuarios, roles con jerarquía, permisos por menú y acción, menú, novedades y configuración.
 
@@ -24,8 +24,8 @@ Documentación detallada por funcionalidad: [`docs/`](docs/README.md).
 ## Arquitectura
 
 ```
-Navegador ──► web (Angular + nginx :3001) ──► api (NestJS :3000/api) ──┬─► mysql (sistema :3307)
-                                                                       ├─► redis (sesión y cola :6380)
+Navegador ──► web (Angular + nginx) ──► api (NestJS /api) ──┬─► mysql (base del sistema)
+                                                             ├─► redis (sesión y cola)
                                                                        └─► BD de las carteras (MySQL/PostgreSQL, vía VPN)
 ```
 
@@ -36,6 +36,17 @@ docs/       Documentación por funcionalidad
 ```
 
 Más detalle: [docs/01-arquitectura.md](docs/01-arquitectura.md).
+
+### Puertos por ambiente
+
+| Servicio | Desarrollo | QA / PRO |
+|---|---|---|
+| Frontend (web) | 6001 | 7001 |
+| API / Swagger | 6002 | 7002 |
+| MySQL | 3360 | 3371 (solo `127.0.0.1`) |
+| Redis | 3361 | 3372 (solo `127.0.0.1`) |
+
+Son los puertos publicados en el host. Dentro de Docker los servicios siguen en sus puertos internos (API 3000, nginx 80, MySQL 3306, Redis 6379). Como los puertos de cada ambiente son distintos, desarrollo y QA/PRO pueden correr a la vez en una misma máquina.
 
 ## Levantamiento
 
@@ -55,7 +66,7 @@ cd backend && npm install && npm run migration:run && npm run seed && npm run st
 cd frontend && npm install && npm start
 ```
 
-`backend/.env` con `DB_HOST=localhost`, `DB_PORT=3307`, `REDIS_HOST=localhost`, `REDIS_PORT=6380`. El túnel SSH de PostgreSQL funciona igual: la API lee `SSH_KEY_PATH` directamente.
+`backend/.env` con `PORT=6002`, `DB_HOST=localhost`, `DB_PORT=3360`, `REDIS_HOST=localhost`, `REDIS_PORT=3361`. El túnel SSH de PostgreSQL funciona igual: la API lee `SSH_KEY_PATH` directamente.
 
 ### Docker
 
@@ -69,6 +80,7 @@ docker compose --env-file backend/.env -f docker-compose-dev.yml up -d --build a
 docker compose --env-file backend/.env -f docker-compose-dev.yml logs -f api         # ver logs
 docker compose --env-file backend/.env -f docker-compose-dev.yml down                # bajar: borra contenedores y red (conserva datos; -v los BORRA)
 docker image rm soporte-carteras-propias-dev-api soporte-carteras-propias-dev-web    # borrar imágenes del ambiente (tras down)
+docker compose --env-file backend/.env -f docker-compose-dev.yml down --rmi local    # bajar y borrar sus imágenes de un solo paso (conserva datos)
 ```
 
 **QA / PRO** (imágenes compiladas; cada servidor con su `backend/.env`):
@@ -82,9 +94,19 @@ docker compose --env-file backend/.env up -d --build web   # solo frontend/
 docker compose --env-file backend/.env logs -f api         # ver logs
 docker compose --env-file backend/.env down                # bajar: borra contenedores y red (conserva datos; -v los BORRA)
 docker image rm soporte-carteras-propias-api soporte-carteras-propias-web    # borrar imágenes del ambiente (tras down)
+docker compose --env-file backend/.env down --rmi local    # bajar y borrar sus imágenes de un solo paso (conserva datos)
 ```
 
-Desarrollo y QA/PRO usan los mismos puertos: en una máquina corre uno a la vez. Detalle de ambientes, túnel SSH de PostgreSQL y diagnóstico: [docs/13-despliegue-y-operacion.md](docs/13-despliegue-y-operacion.md), [docs/09-configuracion.md](docs/09-configuracion.md).
+**Limpieza total de Docker** (todos los contenedores e imágenes de la máquina, **incluidos otros proyectos**):
+
+```bash
+docker rm -f $(docker ps -aq)       # borra todos los contenedores (también los que están corriendo)
+docker rmi -f $(docker images -q)   # borra todas las imágenes
+```
+
+Ninguno borra volúmenes: los datos de MySQL se conservan (solo `down -v` o `docker volume prune` los borran). Tras la limpieza se vuelve a `build` y `up -d`.
+
+Desarrollo y QA/PRO publican puertos distintos ([Puertos por ambiente](#puertos-por-ambiente)): pueden correr a la vez en una misma máquina. Detalle de ambientes, túnel SSH de PostgreSQL y diagnóstico: [docs/13-despliegue-y-operacion.md](docs/13-despliegue-y-operacion.md), [docs/09-configuracion.md](docs/09-configuracion.md).
 
 ## Base de datos
 
@@ -122,15 +144,15 @@ docker compose --env-file backend/.env exec api npm run schema:drop:prod && dock
 
 Al reiniciar `api` se corren la migración y el seed sin borrar datos: solo aplican lo que falte. Los datos viven en el volumen de MySQL, así que bajar/levantar contenedores o reconstruir imágenes no los pierde; solo `down -v` o `schema:drop` los borra.
 
-Cada ambiente tiene su propio volumen (desarrollo: `soporte-carteras-propias-dev-mysql-data`; QA/PRO: `soporte-carteras-propias-mysql-data`) y ambos usan `localhost:3307`: DBeaver solo ve la base del ambiente levantado. La otra no se pierde; reaparece al levantar su ambiente (`docker volume ls | grep soporte`).
+Cada ambiente tiene su propio volumen (desarrollo: `soporte-carteras-propias-dev-mysql-data`; QA/PRO: `soporte-carteras-propias-mysql-data`) y su propio puerto de MySQL (desarrollo `localhost:3360`, QA/PRO `localhost:3371`), así que ambas bases se ven a la vez (`docker volume ls | grep soporte`).
 
 ### DBeaver
 
-Nueva conexión → **MySQL**, directa a `localhost:3307` en todos los ambientes (corre uno a la vez); cambia solo la base:
+Nueva conexión → **MySQL**, directa al puerto del ambiente (en QA/PRO desde el propio servidor, porque MySQL solo escucha en `127.0.0.1`):
 
 | Campo | Desarrollo | QA | PRO |
 |---|---|---|---|
-| Host / Puerto | `localhost` / `3307` | `localhost` / `3307` | `localhost` / `3307` |
+| Host / Puerto | `localhost` / `3360` | `localhost` / `3371` | `localhost` / `3371` |
 | Base de datos | `dbd_soporte_carteras_propias` | `dbq_soporte_carteras_propias` | `dbp_soporte_carteras_propias` |
 | Usuario / Contraseña | `DB_USER` / `DB_PASSWORD` de `backend/.env` | igual | igual |
 | Driver properties | `allowPublicKeyRetrieval=true`, `useSSL=false` | igual | igual |
@@ -139,9 +161,9 @@ Nueva conexión → **MySQL**, directa a `localhost:3307` en todos los ambientes
 
 | | Desarrollo (Docker) | Desarrollo (tradicional) | QA / PRO |
 |---|---|---|---|
-| **Frontend** | http://localhost:3001 | http://localhost:4200 | `http://<servidor>:3001` |
-| **API** | http://localhost:3000/api | http://localhost:3000/api | `http://<servidor>:3000/api` |
-| **Swagger** | http://localhost:3000/api/docs | http://localhost:3000/api/docs | `http://<servidor>:3000/api/docs` |
+| **Frontend** | http://localhost:6001 | http://localhost:4200 | http://localhost:7001 |
+| **API** | http://localhost:6002/api | http://localhost:6002/api | http://localhost:7002/api |
+| **Swagger** | http://localhost:6002/api/docs | http://localhost:6002/api/docs | http://localhost:7002/api/docs |
 
 Primer ingreso con el usuario `SEED_SUPERADMIN_*` del `.env`. Guía por módulo: [docs/](docs/README.md).
 
@@ -150,7 +172,8 @@ Primer ingreso con el usuario `SEED_SUPERADMIN_*` del `.env`. Guía por módulo:
 Para compartir el sistema por una URL pública temporal (`https://…trycloudflare.com`) sin abrir puertos ni configurar DNS. Solo se tuneliza el **frontend**: nginx reenvía `/api` a la API, así que el backend viaja por el mismo túnel.
 
 ```bash
-cloudflared tunnel --url http://localhost:3001   # Docker (dev, QA o PRO)
+cloudflared tunnel --url http://localhost:6001   # Docker desarrollo
+cloudflared tunnel --url http://localhost:7001   # Docker QA / PRO
 cloudflared tunnel --url http://localhost:4200   # tradicional (ng serve)
 ```
 

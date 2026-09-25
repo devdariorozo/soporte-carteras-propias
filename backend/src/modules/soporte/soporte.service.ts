@@ -7,7 +7,7 @@ import { DEFAULT_LIMIT, DEFAULT_PAGE, buildPaginationBlock } from '../../common/
 import { PaginacionQueryDto } from '../../common/dto/paginacion-query.dto.js';
 import { asignarDefinidos } from '../../common/utils/asignar-definidos.util.js';
 import { capitalizarPalabras } from '../../common/utils/texto.util.js';
-import { validarSentenciaUpdate } from '../../common/sql/sentencia-update.util.js';
+import { validarSentencia } from '../../common/sql/sentencia.util.js';
 import { RawMysqlService } from '../../common/raw-db/raw-mysql.service.js';
 import { RawPostgresService } from '../../common/raw-db/raw-postgres.service.js';
 import { ErrorTunelSsh } from '../../common/raw-db/tunel-ssh.js';
@@ -85,7 +85,7 @@ export class SoporteService implements OnModuleDestroy {
   }
 
   async create(dto: CrearSoporteDto, idUsuario: number) {
-    this.exigirSentenciaUpdate(dto.sentencia, dto.motor);
+    this.exigirSentenciaPermitida(dto.sentencia, dto.motor);
     const soporte = await this.soportes.save(
       this.soportes.create({
         cliente: capitalizarPalabras(dto.cliente),
@@ -142,7 +142,7 @@ export class SoporteService implements OnModuleDestroy {
   async update(id: number, dto: ActualizarSoporteDto, idUsuario: number) {
     const soporte = await this.obtenerOFallar(id);
     if (dto.sentencia !== undefined || dto.motor !== undefined) {
-      this.exigirSentenciaUpdate(dto.sentencia ?? soporte.sentencia, dto.motor ?? soporte.motor);
+      this.exigirSentenciaPermitida(dto.sentencia ?? soporte.sentencia, dto.motor ?? soporte.motor);
     }
     asignarDefinidos(soporte, dto);
     if (dto.cliente !== undefined) {
@@ -197,8 +197,8 @@ export class SoporteService implements OnModuleDestroy {
       if (!objeto) {
         throw new Error(`No hay una conexión activa configurada (configuracion.nombre = "${soporte.motor}").`);
       }
-      // Última barrera: aunque el registro se haya guardado por otra vía, nunca se ejecuta algo que no sea un UPDATE.
-      const validacion = validarSentenciaUpdate(soporte.sentencia, soporte.motor);
+      // Última barrera: aunque el registro se haya guardado por otra vía, nunca se ejecuta algo que no sea un UPDATE con WHERE o un INSERT limpio.
+      const validacion = validarSentencia(soporte.sentencia, soporte.motor);
       if (!validacion.valida) {
         throw new SentenciaNoPermitidaError(validacion.mensaje as string);
       }
@@ -304,9 +304,9 @@ export class SoporteService implements OnModuleDestroy {
     await this.rawMysqlService.executeEnTransaccion({ host, port, usuario, password, database: basesSentencia[0] }, sentencias);
   }
 
-  /** 422: alguna sentencia no es un UPDATE con WHERE — el frontend lo muestra como advertencia (amarillo). */
-  private exigirSentenciaUpdate(sentencia: string, motor: MotorSoporte): void {
-    const validacion = validarSentenciaUpdate(sentencia, motor);
+  /** 422: alguna sentencia no es un UPDATE con WHERE ni un INSERT limpio, o se mezclan — el frontend lo muestra como advertencia (amarillo). */
+  private exigirSentenciaPermitida(sentencia: string, motor: MotorSoporte): void {
+    const validacion = validarSentencia(sentencia, motor);
     if (!validacion.valida) {
       throw new UnprocessableEntityException({ title: TITULO, message: validacion.mensaje });
     }

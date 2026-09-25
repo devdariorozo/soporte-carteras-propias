@@ -1,0 +1,125 @@
+@if (layout.menuMovilAbierto()) {
+  <div class="fixed inset-0 z-40 bg-black/40 lg:hidden" aria-hidden="true" (click)="layout.cerrarMenuMovil()"></div>
+}
+
+<aside
+  id="menu-lateral"
+  aria-label="Menú principal"
+  class="fixed inset-y-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col border-r border-surface-200 bg-white transition-[transform,width] duration-200 ease-out lg:static lg:z-auto lg:max-w-none lg:translate-x-0 dark:border-surface-700 dark:bg-surface-900"
+  [class]="clasesAside()"
+>
+  <div class="flex items-center gap-2 border-b border-surface-200 px-3 py-3 dark:border-surface-700" [class.justify-center]="compacto()">
+    @if (!compacto()) {
+      <p class="min-w-0 flex-1 px-2 text-sm text-surface-600 dark:text-surface-300">
+        <span class="block truncate">Hola, {{ usuario()?.primerNombre }}</span>
+        <span class="block truncate text-surface-500">{{ usuario()?.rol }}</span>
+      </p>
+    }
+    <button
+      type="button"
+      class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-surface-500 hover:bg-surface-100 lg:inline-flex dark:hover:bg-surface-800"
+      [attr.aria-label]="compacto() ? 'Expandir menú' : 'Contraer menú'"
+      [attr.aria-expanded]="!compacto()"
+      aria-controls="menu-lateral"
+      pTooltip="Expandir menú"
+      tooltipPosition="right"
+      [tooltipDisabled]="!compacto()"
+      (click)="layout.alternarColapsado()"
+    >
+      <!-- Contraído: el ícono de la app expande el menú; desplegado: « lo contrae. -->
+      @if (compacto()) {
+        <img src="favicon.ico" alt="" width="28" height="28" />
+      } @else {
+        <i class="pi pi-angle-double-left"></i>
+      }
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-surface-500 hover:bg-surface-100 lg:hidden dark:hover:bg-surface-800"
+      aria-label="Cerrar menú"
+      (click)="layout.cerrarMenuMovil()"
+    >
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <nav class="flex flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-3 py-4">
+    @for (apartado of apartados(); track apartado.apartado; let primero = $first) {
+      <div class="flex flex-col gap-1">
+        @if (!compacto()) {
+          <span class="px-3 text-xs font-semibold uppercase tracking-wide text-surface-400">{{ apartado.apartado }}</span>
+        } @else if (!primero) {
+          <hr class="mx-2 mb-1 border-surface-200 dark:border-surface-700" />
+        }
+        @for (opcion of apartado.opciones; track opcion.ruta) {
+          <a
+            [routerLink]="opcion.ruta"
+            routerLinkActive="bg-primary-100 text-primary dark:bg-primary-900/40"
+            class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+            [class.justify-center]="compacto()"
+            [attr.aria-label]="compacto() ? opcion.menu : null"
+            [pTooltip]="opcion.menu"
+            tooltipPosition="right"
+            [tooltipDisabled]="!compacto()"
+          >
+            <i [class]="opcion.icono"></i>
+            @if (!compacto()) {
+              <span class="truncate">{{ opcion.menu }}</span>
+            }
+          </a>
+        }
+      </div>
+    }
+  </nav>
+
+  <div class="border-t border-surface-200 px-3 py-3 dark:border-surface-700">
+    <button
+      type="button"
+      (click)="ayudaVisible.set(true)"
+      class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+      [class.justify-center]="compacto()"
+      [attr.aria-label]="compacto() ? 'Ayuda' : null"
+      pTooltip="Ayuda"
+      tooltipPosition="right"
+      [tooltipDisabled]="!compacto()"
+    >
+      <i class="pi pi-question-circle"></i>
+      @if (!compacto()) {
+        Ayuda
+      }
+    </button>
+
+    <p-button
+      [text]="true"
+      severity="secondary"
+      icon="pi pi-user"
+      iconPos="left"
+      [label]="compacto() ? '' : usuario()?.primerNombre + ' ' + usuario()?.primerApellido"
+      [ariaLabel]="usuario()?.primerNombre + ' ' + usuario()?.primerApellido"
+      [styleClass]="compacto() ? 'w-full !justify-center mt-1' : 'w-full !justify-start mt-1'"
+      [pTooltip]="usuario()?.primerNombre + ' ' + usuario()?.primerApellido"
+      tooltipPosition="right"
+      [tooltipDisabled]="!compacto()"
+      (onClick)="menu.toggle($event)"
+    />
+    <p-menu #menu [model]="itemsUsuario" [popup]="true" appendTo="body" />
+  </div>
+</aside>
+
+<p-dialog [(visible)]="ayudaVisible" [modal]="true" header="Ayuda" [style]="{ width: '360px' }" [breakpoints]="{ '575px': '92vw' }">
+  <p class="mb-4 text-sm text-surface-600 dark:text-surface-300">¿Necesitas soporte con el sistema? Escríbenos.</p>
+  <ul class="flex flex-col gap-3 text-sm">
+    <li class="flex items-center gap-2">
+      <i class="pi pi-envelope text-primary"></i>
+      <a href="mailto:r.rozo@montechelo.com.co">r.rozo&#64;montechelo.com.co</a>
+    </li>
+    <li class="flex items-center gap-2">
+      <i class="pi pi-whatsapp text-primary"></i>
+      <a href="https://wa.me/573102970334" target="_blank" rel="noopener">310 297 0334</a>
+    </li>
+    <li class="flex items-center gap-2">
+      <i class="pi pi-users text-primary"></i>
+      Team Devs Portfolios - Dario
+    </li>
+  </ul>
+</p-dialog>

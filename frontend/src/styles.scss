@@ -1,0 +1,109 @@
+@use './tailwind.css';
+@use 'primeicons/primeicons.css';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+/* Tablas: en pantallas angostas se desplazan a lo ancho en vez de desbordar la página (cada una fija su min-width). */
+.p-datatable-table-container {
+  overflow-x: auto;
+}
+
+/*
+ * Móvil: cada fila como tarjeta "Columna: valor" (títulos en `data-label`, ver
+ * TablaResponsivaDirective). Tablet y PC conservan la tabla con desplazamiento horizontal.
+ */
+@media (max-width: 767px) {
+  .tabla-responsiva {
+    .p-datatable-table-container > table {
+      display: block;
+      width: 100%;
+      min-width: 0 !important;
+    }
+
+    .p-datatable-thead {
+      display: none;
+    }
+
+    .p-datatable-tbody {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .p-datatable-tbody > tr {
+      display: block;
+      border: 1px solid var(--p-content-border-color);
+      border-radius: 0.5rem;
+      padding: 0.25rem 0;
+    }
+
+    .p-datatable-tbody > tr > td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      max-width: none;
+      border: 0 !important;
+      padding: 0.5rem 0.875rem !important;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .p-datatable-tbody > tr > td::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      max-width: 45%;
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-align: left;
+      color: var(--p-text-muted-color);
+    }
+
+    /* Celdas sin título (acciones, ícono de expandir) y las que ocupan toda la fila. */
+    .p-datatable-tbody > tr > td[data-label='']::before {
+      display: none;
+    }
+
+    .p-datatable-tbody > tr > td[data-label=''] {
+      justify-content: flex-end;
+    }
+
+    .p-datatable-tbody > tr > td[colspan] {
+      display: block;
+      text-align: left;
+    }
+  }
+}
+
+/*
+ * Confirmación de eliminar (ver ConfirmService): alerta amarilla completa como control
+ * visual — fondo, borde, texto e ícono; botones "No" verde y "Sí" rojo desde el servicio.
+ */
+.confirmar-eliminar {
+  --p-dialog-background: #fef9c3;
+  --p-dialog-border-color: #facc15;
+  --p-dialog-color: #713f12;
+
+  &.p-dialog {
+    border-width: 2px;
+  }
+
+  .p-confirmdialog-icon {
+    color: #ca8a04;
+  }
+}
+
+.dark .confirmar-eliminar {
+  --p-dialog-background: #422006;
+  --p-dialog-border-color: #ca8a04;
+  --p-dialog-color: #fef08a;
+
+  .p-confirmdialog-icon {
+    color: #facc15;
+  }
+}

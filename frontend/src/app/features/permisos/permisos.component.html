@@ -1,0 +1,100 @@
+<div class="p-4 md:p-6">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-xl font-semibold">Permisos</h1>
+    @if (puedeCrear()) {
+      <p-button label="Nuevo" icon="pi pi-plus" (onClick)="nuevo()" />
+    }
+  </div>
+
+  <p-table
+    appTablaResponsiva
+    [tableStyle]="{ 'min-width': '52rem' }"
+    [value]="permisos()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows"
+    [totalRecords]="total()"
+    (onLazyLoad)="cargar($event)"
+    dataKey="id"
+  >
+    <ng-template #header>
+      <tr>
+        <th>Número</th>
+        <th>Rol</th>
+        <th>Menu</th>
+        <th>Permiso</th>
+        <th>Estado</th>
+        <th>Descripción</th>
+        <th>Responsable</th>
+        <th>Fecha</th>
+        <th>Actualizado</th>
+        <th></th>
+      </tr>
+    </ng-template>
+    <ng-template #body let-permiso>
+      <tr>
+        <td>{{ permiso.id | vacio }}</td>
+        <td>{{ nombreRol(permiso.idRol) | vacio }}</td>
+        <td>{{ permiso.menu | vacio }}</td>
+        <td>{{ permiso.permiso | vacio }}</td>
+        <td>{{ permiso.estadoRegistro === 1 ? 'Activo' : 'Inactivo' }}</td>
+        <td class="max-w-xs truncate">{{ permiso.descripcion | vacio }}</td>
+        <td>{{ permiso.responsable | vacio }}</td>
+        <td>{{ (permiso.fechaCreacion | date: 'short') | vacio }}</td>
+        <td>{{ (permiso.fechaActualizacion | date: 'short') | vacio }}</td>
+        <td class="flex justify-end gap-2">
+          @if (puedeEditar() && !reservado(permiso)) {
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(permiso)" />
+          }
+          @if (puedeEliminar() && !reservado(permiso)) {
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="eliminar(permiso)" />
+          }
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template #emptymessage>
+      <tr>
+        <td colspan="10" class="text-center">No hay permisos registrados.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+
+  <p-dialog
+    [(visible)]="dialogoVisible"
+    [modal]="true"
+    [header]="editando() ? 'Editar permiso' : 'Nuevo permiso'"
+    [style]="{ width: '360px' }" [breakpoints]="{ '575px': '92vw' }"
+  >
+    <form [formGroup]="form" (ngSubmit)="guardar()" class="flex flex-col gap-4 pt-2">
+      <div class="flex flex-col gap-1.5">
+        <label for="idRol">Rol</label>
+        <p-select inputId="idRol" formControlName="idRol" [options]="roles()" optionLabel="rol" optionValue="id" [filter]="true" filterBy="rol" styleClass="w-full" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="menu">Menu</label>
+        <p-select inputId="menu" formControlName="menu" [options]="menusAsignables()" [filter]="true" (onChange)="onMenuChange()" styleClass="w-full" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="permiso">Acción</label>
+        <p-select inputId="permiso" formControlName="permiso" [options]="accionesPara(form.controls.menu.value)" [filter]="true" styleClass="w-full" />
+      </div>
+
+      @if (editando()) {
+        <div class="flex flex-col gap-1.5">
+          <label for="estadoRegistro">Estado</label>
+          <p-select inputId="estadoRegistro" formControlName="estadoRegistro" [options]="estados" optionLabel="label" optionValue="value" styleClass="w-full" />
+        </div>
+      }
+
+      <div class="flex flex-col gap-1.5">
+        <label for="descripcion">Descripción</label>
+        <textarea id="descripcion" pTextarea formControlName="descripcion" (input)="onDescripcionInput($event)" rows="3" maxlength="255" class="w-full"></textarea>
+        @if (form.controls.descripcion.touched && form.controls.descripcion.hasError('minlength')) {
+          <small class="text-red-500">Mínimo 3 caracteres.</small>
+        }
+      </div>
+
+      <p-button type="submit" label="Guardar" [disabled]="form.invalid" styleClass="w-full" />
+    </form>
+  </p-dialog>
+</div>

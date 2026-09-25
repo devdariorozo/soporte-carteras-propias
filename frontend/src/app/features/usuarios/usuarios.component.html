@@ -1,0 +1,204 @@
+<div class="p-4 md:p-6">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-xl font-semibold">Usuarios</h1>
+    @if (puedeCrear()) {
+      <p-button label="Nuevo" icon="pi pi-plus" (onClick)="nuevo()" />
+    }
+  </div>
+
+  <p-table
+    appTablaResponsiva
+    [tableStyle]="{ 'min-width': '80rem' }"
+    [value]="usuarios()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows"
+    [totalRecords]="total()"
+    (onLazyLoad)="cargar($event)"
+    dataKey="id"
+  >
+    <ng-template #header>
+      <tr>
+        <th>Número</th>
+        <th>Número de documento</th>
+        <th>Primer Nombre</th>
+        <th>Segundo Nombre</th>
+        <th>Primer Apellido</th>
+        <th>Segundo Apellido</th>
+        <th>Número de contacto</th>
+        <th>Rol</th>
+        <th>Correo</th>
+        <th>Usuario</th>
+        <th>Estado</th>
+        <th>Descripción</th>
+        <th>Responsable</th>
+        <th>Fecha</th>
+        <th>Actualizado</th>
+        <th></th>
+      </tr>
+    </ng-template>
+    <ng-template #body let-usuario>
+      <tr>
+        <td>{{ usuario.id | vacio }}</td>
+        <td>{{ usuario.numeroDocumento | vacio }}</td>
+        <td>{{ usuario.primerNombre | vacio }}</td>
+        <td>{{ usuario.segundoNombre | vacio }}</td>
+        <td>{{ usuario.primerApellido | vacio }}</td>
+        <td>{{ usuario.segundoApellido | vacio }}</td>
+        <td>{{ usuario.numeroContacto | vacio }}</td>
+        <td>{{ nombreRol(usuario.idRol) | vacio }}</td>
+        <td>{{ usuario.correo | vacio }}</td>
+        <td>{{ usuario.usuario | vacio }}</td>
+        <td>{{ usuario.estadoRegistro === 1 ? 'Activo' : 'Inactivo' }}</td>
+        <td class="max-w-xs truncate">{{ usuario.descripcion | vacio }}</td>
+        <td>{{ usuario.responsable | vacio }}</td>
+        <td>{{ (usuario.fechaCreacion | date: 'short') | vacio }}</td>
+        <td>{{ (usuario.fechaActualizacion | date: 'short') | vacio }}</td>
+        <td class="flex justify-end gap-2">
+          @if (puedeResetearPassword() && !reservado(usuario)) {
+            <p-button icon="pi pi-key" severity="warn" [text]="true" (onClick)="abrirReseteo(usuario)" />
+          }
+          @if (puedeEditar() && !reservado(usuario)) {
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(usuario)" />
+          }
+          @if (puedeEliminar() && !reservado(usuario)) {
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="eliminar(usuario)" />
+          }
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template #emptymessage>
+      <tr>
+        <td colspan="16" class="text-center">No hay usuarios registrados.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+
+  <p-dialog
+    [(visible)]="dialogoVisible"
+    [modal]="true"
+    [header]="editando() ? 'Editar usuario' : 'Nuevo usuario'"
+    [style]="{ width: '480px' }" [breakpoints]="{ '575px': '92vw' }"
+  >
+    <form [formGroup]="form" (ngSubmit)="guardar()" class="flex flex-col gap-4 pt-2">
+      <div class="flex flex-col gap-1.5">
+        <label for="numeroDocumento">Número de documento</label>
+        <input
+          id="numeroDocumento"
+          type="text"
+          pInputText
+          formControlName="numeroDocumento"
+          (input)="onDocumentoInput($event)"
+          maxlength="24"
+          class="w-full"
+        />
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="flex flex-col gap-1.5">
+          <label for="primerNombre">Primer nombre</label>
+          <input id="primerNombre" type="text" pInputText formControlName="primerNombre" (input)="onNombreInput('primerNombre', $event)" maxlength="45" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="segundoNombre">Segundo nombre</label>
+          <input id="segundoNombre" type="text" pInputText formControlName="segundoNombre" (input)="onNombreInput('segundoNombre', $event)" maxlength="45" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="primerApellido">Primer apellido</label>
+          <input id="primerApellido" type="text" pInputText formControlName="primerApellido" (input)="onNombreInput('primerApellido', $event)" maxlength="45" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="segundoApellido">Segundo apellido</label>
+          <input id="segundoApellido" type="text" pInputText formControlName="segundoApellido" (input)="onNombreInput('segundoApellido', $event)" maxlength="45" class="w-full" />
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="numeroContacto">Número de contacto</label>
+        <input
+          id="numeroContacto"
+          type="text"
+          inputmode="numeric"
+          pInputText
+          formControlName="numeroContacto"
+          (input)="onContactoInput($event)"
+          maxlength="12"
+          class="w-full"
+        />
+        @if (form.controls.numeroContacto.touched && form.controls.numeroContacto.hasError('required')) {
+          <small class="text-red-500">El número de contacto es obligatorio.</small>
+        } @else if (form.controls.numeroContacto.touched && form.controls.numeroContacto.hasError('pattern')) {
+          <small class="text-red-500">Debe tener 10 dígitos (ej. 321 256 5689).</small>
+        }
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="idRol">Rol</label>
+        <p-select inputId="idRol" formControlName="idRol" [options]="roles()" optionLabel="rol" optionValue="id" [filter]="true" filterBy="rol" styleClass="w-full" />
+      </div>
+
+      @if (editando()) {
+        <div class="flex flex-col gap-1.5">
+          <label for="estadoRegistro">Estado</label>
+          <p-select inputId="estadoRegistro" formControlName="estadoRegistro" [options]="estados" optionLabel="label" optionValue="value" styleClass="w-full" />
+        </div>
+      }
+
+      <div class="flex flex-col gap-1.5">
+        <label for="correo">Correo</label>
+        <input id="correo" type="email" pInputText formControlName="correo" class="w-full" />
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="usuario">Usuario</label>
+        <input id="usuario" type="text" pInputText formControlName="usuario" class="w-full" />
+        <small class="text-surface-500">Se completa solo con el documento sin puntos; puedes corregirlo si hace falta.</small>
+      </div>
+
+      @if (!editando()) {
+        <div class="flex flex-col gap-1.5">
+          <label for="passwordTemporal">Contraseña temporal</label>
+          <p-password
+            inputId="passwordTemporal"
+            formControlName="passwordTemporal"
+            [feedback]="false"
+            [toggleMask]="true"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+          <app-password-fortaleza [valor]="form.controls.passwordTemporal.value" />
+          <small class="text-surface-500">El usuario deberá cambiarla en su primer ingreso.</small>
+        </div>
+      }
+
+      <div class="flex flex-col gap-1.5">
+        <label for="descripcion">Descripción</label>
+        <textarea id="descripcion" pTextarea formControlName="descripcion" (input)="onDescripcionInput($event)" rows="3" maxlength="255" class="w-full"></textarea>
+        @if (form.controls.descripcion.touched && form.controls.descripcion.hasError('minlength')) {
+          <small class="text-red-500">Mínimo 3 caracteres.</small>
+        }
+      </div>
+
+      <p-button type="submit" label="Guardar" [disabled]="form.invalid" styleClass="w-full" />
+    </form>
+  </p-dialog>
+
+  <p-dialog [(visible)]="resetDialogoVisible" [modal]="true" header="Restablecer contraseña" [style]="{ width: '360px' }" [breakpoints]="{ '575px': '92vw' }">
+    <form [formGroup]="resetForm" (ngSubmit)="confirmarReseteo()" class="flex flex-col gap-4 pt-2">
+      <div class="flex flex-col gap-1.5">
+        <label for="resetPasswordTemporal">Contraseña temporal</label>
+        <p-password
+          inputId="resetPasswordTemporal"
+          formControlName="passwordTemporal"
+          [feedback]="false"
+          [toggleMask]="true"
+          styleClass="w-full"
+          inputStyleClass="w-full"
+        />
+        <app-password-fortaleza [valor]="resetForm.controls.passwordTemporal.value" />
+        <small class="text-surface-500">El usuario deberá definir contraseña y secreto nuevos al ingresar.</small>
+      </div>
+      <p-button type="submit" label="Asignar" [disabled]="resetForm.invalid" styleClass="w-full" />
+    </form>
+  </p-dialog>
+</div>

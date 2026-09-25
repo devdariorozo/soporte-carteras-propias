@@ -1,0 +1,95 @@
+# =============================================================================
+# Ambiente de DESARROLLO — independiente de QA/PRO (proyecto, contenedores, red y
+# volumen propios, todos con el prefijo soporte-carteras-propias-dev-). Base de datos: la de
+# backend/.env (DB_NAME=dbd_soporte_carteras_propias).
+#
+#   docker compose -f docker-compose-dev.yml build --no-cache
+#   docker compose -f docker-compose-dev.yml up -d
+#
+# La API corre en modo watch: cada cambio en backend/src se refleja sin reconstruir.
+# El frontend se sirve compilado (nginx); tras cambiar frontend/ reconstruir `web`.
+# =============================================================================
+name: soporte-carteras-propias-dev
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: soporte-carteras-propias-dev-mysql
+    # backend/.env es la única fuente de verdad: la imagen oficial exige
+    # MYSQL_ROOT_PASSWORD/MYSQL_DATABASE, se arman desde DB_PASSWORD/DB_NAME.
+    env_file:
+      - path: ./backend/.env
+        required: true
+    entrypoint: ['sh', '-c', 'export MYSQL_ROOT_PASSWORD="$$DB_PASSWORD" MYSQL_DATABASE="$$DB_NAME"; exec docker-entrypoint.sh mysqld']
+    ports:
+      - '3307:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -uroot -p"$$DB_PASSWORD" --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: soporte-carteras-propias-dev-redis
+    ports:
+      - '6380:6379'
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      target: dev
+    image: soporte-carteras-propias-dev-api:latest
+    container_name: soporte-carteras-propias-dev-api
+    env_file:
+      - path: ./backend/.env
+        required: true
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Conexiones de Soporte con host localhost/127.0.0.1 -> máquina anfitriona.
+      HOST_LOCAL_ALIAS: host.docker.internal
+      # Dentro del contenedor la llave está en el volumen (abajo), no en la ruta del host.
+      SSH_KEY_PATH: /run/secrets/bastion_key
+      WATCHPACK_POLLING: 'true'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/test:/app/test
+      # Llave SSH del bastión (túnel de PostgreSQL): ruta real en SSH_KEY_PATH de backend/.env
+      # (los comandos llevan --env-file backend/.env).
+      - ${SSH_KEY_PATH:-/dev/null}:/run/secrets/bastion_key:ro
+    ports:
+      - '3000:3000'
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+    image: soporte-carteras-propias-dev-web:latest
+    container_name: soporte-carteras-propias-dev-web
+    ports:
+      - '3001:80'
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    name: soporte-carteras-propias-dev-mysql-data
+
+networks:
+  default:
+    name: soporte-carteras-propias-dev-network

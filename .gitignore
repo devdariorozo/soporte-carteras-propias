@@ -1,0 +1,4 @@
+# Cada app trae su propio .gitignore (backend/, frontend/); esto cubre la raíz.
+.env
+.DS_Store
+Thumbs.db

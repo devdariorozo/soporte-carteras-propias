@@ -1,0 +1,130 @@
+<div class="p-4 md:p-6">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-xl font-semibold">Configuración</h1>
+    @if (puedeCrear()) {
+      <p-button label="Nuevo" icon="pi pi-plus" (onClick)="nuevo()" />
+    }
+  </div>
+
+  <p-table
+    appTablaResponsiva
+    [tableStyle]="{ 'min-width': '56rem' }"
+    [value]="configuraciones()"
+    [lazy]="true"
+    [paginator]="true"
+    [rows]="rows"
+    [totalRecords]="total()"
+    (onLazyLoad)="cargar($event)"
+    dataKey="id"
+  >
+    <ng-template #header>
+      <tr>
+        <th>Número</th>
+        <th>Nombre</th>
+        <th>Alcance</th>
+        <th>Objeto</th>
+        <th>Estado</th>
+        <th>Descripción</th>
+        <th>Responsable</th>
+        <th>Fecha</th>
+        <th>Actualizado</th>
+        <th></th>
+      </tr>
+    </ng-template>
+    <ng-template #body let-configuracion>
+      <tr>
+        <td>{{ configuracion.id | vacio }}</td>
+        <td>{{ configuracion.nombre | vacio }}</td>
+        <td>{{ configuracion.alcance | vacio }}</td>
+        <td class="max-w-xs truncate">{{ objetoResumen(configuracion.objeto) | vacio }}</td>
+        <td>{{ configuracion.estadoRegistro === 1 ? 'Activo' : 'Inactivo' }}</td>
+        <td class="max-w-xs truncate">{{ configuracion.descripcion | vacio }}</td>
+        <td>{{ configuracion.responsable | vacio }}</td>
+        <td>{{ (configuracion.fechaCreacion | date: 'short') | vacio }}</td>
+        <td>{{ (configuracion.fechaActualizacion | date: 'short') | vacio }}</td>
+        <td class="flex justify-end gap-2">
+          @if (puedeEditar()) {
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(configuracion)" />
+          }
+          @if (puedeEliminar()) {
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="eliminar(configuracion)" />
+          }
+        </td>
+      </tr>
+    </ng-template>
+    <ng-template #emptymessage>
+      <tr>
+        <td colspan="10" class="text-center">No hay configuración registrada.</td>
+      </tr>
+    </ng-template>
+  </p-table>
+
+  <p-dialog
+    [(visible)]="dialogoVisible"
+    [modal]="true"
+    [header]="editando() ? 'Editar configuración' : 'Nueva configuración'"
+    [style]="{ width: '680px', maxWidth: '95vw' }"
+  >
+    <form [formGroup]="form" (ngSubmit)="guardar()" class="flex flex-col gap-4 pt-2">
+      <div class="flex flex-col gap-1.5">
+        <label for="nombre">Nombre</label>
+        <input id="nombre" type="text" pInputText formControlName="nombre" maxlength="45" class="w-full" />
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="alcance">Alcance</label>
+        <input id="alcance" type="text" pInputText formControlName="alcance" maxlength="45" class="w-full" />
+        @if (form.controls.alcance.touched && form.controls.alcance.hasError('required')) {
+          <small class="text-red-500">El alcance es obligatorio.</small>
+        } @else if (form.controls.alcance.touched && form.controls.alcance.hasError('minlength')) {
+          <small class="text-red-500">Mínimo 3 caracteres.</small>
+        }
+      </div>
+
+      @if (editando()) {
+        <div class="flex flex-col gap-1.5">
+          <label for="estadoRegistro">Estado</label>
+          <p-select inputId="estadoRegistro" formControlName="estadoRegistro" [options]="estados" optionLabel="label" optionValue="value" styleClass="w-full" />
+        </div>
+      }
+
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-surface-500">Pares clave / valor</span>
+          <p-button type="button" label="Agregar" icon="pi pi-plus" [text]="true" (onClick)="agregarPar()" />
+        </div>
+        @for (fila of pares.controls; track $index) {
+          <div [formGroup]="fila" class="flex flex-col gap-1">
+            <div class="flex items-end gap-2">
+              <div class="flex flex-1 flex-col gap-1.5">
+                <label>Clave</label>
+                <input type="text" pInputText formControlName="clave" class="w-full" />
+              </div>
+              <div class="flex flex-1 flex-col gap-1.5">
+                <label>Valor</label>
+                <input type="text" pInputText formControlName="valor" class="w-full" />
+              </div>
+              <p-button type="button" icon="pi pi-trash" severity="danger" [text]="true" (onClick)="quitarPar($index)" />
+            </div>
+            @if (fila.controls['clave'].touched && fila.controls['clave'].hasError('required')) {
+              <small class="text-red-500">La clave es obligatoria.</small>
+            }
+          </div>
+        }
+        @if (pares.hasError('clavesDuplicadas')) {
+          <small class="text-red-500">Hay claves repetidas; cada clave debe ser única.</small>
+        }
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="descripcion">Descripción</label>
+        <textarea id="descripcion" pTextarea formControlName="descripcion" (input)="onDescripcionInput($event)" rows="3" maxlength="255" class="w-full"></textarea>
+        @if (form.controls.descripcion.touched && form.controls.descripcion.hasError('minlength')) {
+          <small class="text-red-500">Mínimo 3 caracteres.</small>
+        }
+      </div>
+
+      <p-button type="submit" label="Guardar" [disabled]="form.invalid" styleClass="w-full" />
+    </form>
+  </p-dialog>
+</div>

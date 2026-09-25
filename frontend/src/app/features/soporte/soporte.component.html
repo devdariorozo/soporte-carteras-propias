@@ -1,0 +1,85 @@
+<div class="flex justify-center p-4 md:p-6">
+  @if (puedeCrear()) {
+    <p-card header="Soporte" subheader="Registra y ejecuta la sentencia del cliente." styleClass="w-full max-w-2xl">
+      <form [formGroup]="form" (ngSubmit)="registrarYEjecutar()" class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="cliente">Cliente</label>
+          <p-autocomplete
+            inputId="cliente"
+            formControlName="cliente"
+            [suggestions]="sugerenciasCliente()"
+            (completeMethod)="buscarClientes($event)"
+            [minQueryLength]="2"
+            [delay]="300"
+            placeholder="Escribe para buscar clientes ya registrados"
+            styleClass="w-full"
+            inputStyleClass="w-full"
+          />
+          @if (form.controls.cliente.hasError('maxlength')) {
+            <small class="text-red-500">Máximo 100 caracteres.</small>
+          }
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="idNovedad">Novedad</label>
+          <p-select
+            inputId="idNovedad"
+            formControlName="idNovedad"
+            [options]="novedades()"
+            optionLabel="novedad"
+            optionValue="id"
+            [filter]="true"
+            filterBy="novedad"
+            placeholder="Selecciona la novedad"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="mensajeWhatsapp">Mensaje de WhatsApp</label>
+          <textarea id="mensajeWhatsapp" pTextarea formControlName="mensajeWhatsapp" rows="3" maxlength="255" class="w-full"></textarea>
+          <ng-container *ngTemplateOutlet="contador; context: { $implicit: 255 - form.controls.mensajeWhatsapp.value.length, maximo: 255 }" />
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="motor">Motor</label>
+          <p-select
+            inputId="motor"
+            formControlName="motor"
+            [options]="motores()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Selecciona el motor"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="sentencia">Sentencia</label>
+          <textarea id="sentencia" pTextarea formControlName="sentencia" rows="5" maxlength="5000" class="w-full font-mono text-sm"></textarea>
+          <ng-container *ngTemplateOutlet="contador; context: { $implicit: 5000 - form.controls.sentencia.value.length, maximo: 5000 }" />
+        </div>
+
+        @if (mensajeAdvertencia(); as aviso) {
+          <app-alerta-resultado tipo="advertencia" [mensaje]="aviso" [copiable]="true" (copiar)="copiarTexto($event)" />
+        }
+
+        @if (registro(); as resultado) {
+          @if (resultado.estadoSoporte === 'Completado') {
+            <app-alerta-resultado tipo="exito" [mensaje]="resultado.descripcion" [copiable]="true" (copiar)="copiarMensaje()" />
+          } @else if (resultado.estadoSoporte === 'Error') {
+            <app-alerta-resultado tipo="error" [mensaje]="resultado.descripcion" [copiable]="true" (copiar)="copiarTexto($event)" />
+            <p-button type="submit" label="Reintentar" icon="pi pi-refresh" [disabled]="form.invalid" styleClass="w-full" />
+          }
+        } @else {
+          <p-button type="submit" label="Registrar y ejecutar" [disabled]="form.invalid" styleClass="w-full" />
+        }
+      </form>
+    </p-card>
+  }
+</div>
+
+<!-- Caracteres restantes: tenue y alineado a la derecha; se resalta al quedar el 10 % o menos. -->
+<ng-template #contador let-restantes let-maximo="maximo">
+  <small class="self-end text-xs tabular-nums" [class]="restantes <= maximo * 0.1 ? 'text-orange-500' : 'text-surface-400'">{{ restantes }}</small>
+</ng-template>

@@ -6,6 +6,7 @@ import { DEFAULT_LIMIT, DEFAULT_PAGE, buildPaginationBlock } from '../../common/
 import { EstadoSoporte, MotorSoporte, Soporte } from '../soporte/soporte.entity.js';
 import { adjuntarResponsables, nombreCompleto } from '../../common/utils/responsable.util.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
+import { resolverRangoFechas } from '../../common/utils/rango-fechas.util.js';
 import { FiltrosInformesDto } from './dto/filtros-informes.dto.js';
 
 /** Mismo criterio que las tablas del frontend (pipe `vacio`): celda sin valor -> `---`. */
@@ -20,15 +21,6 @@ const ETIQUETAS_MOTOR: Record<MotorSoporte, string> = {
 function celda<T>(valor: T | null | undefined): T | string {
   return valor === null || valor === undefined || (typeof valor === 'string' && valor.trim() === '') ? TEXTO_VACIO : valor;
 }
-
-interface RangoFechas {
-  inicio: Date;
-  fin: Date;
-}
-
-/** Colombia (COT) — desfase fijo, sin horario de verano. */
-const ZONA_HORARIA_OFFSET = '-05:00';
-const BOGOTA_OFFSET_MS = -5 * 60 * 60 * 1000;
 
 @Injectable()
 export class InformesService {
@@ -139,7 +131,7 @@ export class InformesService {
       qb.leftJoinAndSelect('soporte.novedadRef', 'novedad');
     }
 
-    const { inicio, fin } = this.resolverRangoFechas(filtros.fechaInicio, filtros.fechaFin);
+    const { inicio, fin } = resolverRangoFechas(filtros.fechaInicio, filtros.fechaFin);
     qb.andWhere('soporte.fechaCreacion BETWEEN :inicio AND :fin', { inicio, fin });
 
     if (filtros.idNovedad?.length) {
@@ -153,24 +145,5 @@ export class InformesService {
     }
 
     return qb;
-  }
-
-  private resolverRangoFechas(fechaInicio?: string, fechaFin?: string): RangoFechas {
-    const desde = fechaInicio ?? fechaFin ?? this.fechaHoyBogota();
-    const hasta = fechaFin ?? fechaInicio ?? desde;
-    return {
-      inicio: new Date(`${desde}T00:00:00${ZONA_HORARIA_OFFSET}`),
-      fin: new Date(`${hasta}T23:59:59.999${ZONA_HORARIA_OFFSET}`),
-    };
-  }
-
-  /**
-   * El servidor corre en UTC (Docker) pero el usuario opera en Colombia (UTC-5, sin
-   * horario de verano) — "hoy" sin filtros debe ser el día calendario en Bogotá, no en
-   * UTC, o un registro creado de noche queda fuera del rango por defecto.
-   */
-  private fechaHoyBogota(): string {
-    const instanteBogota = new Date(Date.now() + BOGOTA_OFFSET_MS);
-    return instanteBogota.toISOString().slice(0, 10);
   }
 }

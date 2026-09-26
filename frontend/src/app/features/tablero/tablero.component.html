@@ -1,0 +1,179 @@
+<div class="p-4 md:p-6">
+  @if (puedeConsultar()) {
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <h1 class="text-xl font-semibold">Tablero</h1>
+      @if (kpis(); as datos) {
+        <span class="text-sm text-surface-500">{{ datos.rango.fechaInicio }} a {{ datos.rango.fechaFin }}</span>
+      }
+    </div>
+
+    <!-- Filtros -->
+    <div class="mb-4 grid grid-cols-12 gap-3">
+      <div class="col-span-12 flex flex-col gap-1.5 md:col-span-4">
+        <label>Rango de fechas</label>
+        <p-datepicker
+          [ngModel]="rangoFechas()"
+          (ngModelChange)="rangoFechas.set($event)"
+          (onClose)="onRangoCerrado()"
+          selectionMode="range"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          [readonlyInput]="true"
+          styleClass="w-full"
+        />
+      </div>
+
+      <div class="col-span-12 flex flex-col gap-1.5 md:col-span-4">
+        <label>Integrante</label>
+        <p-multiSelect
+          [ngModel]="filtroUsuario()"
+          (ngModelChange)="filtroUsuario.set($event); onFiltroChange()"
+          [options]="integrantes()"
+          optionLabel="nombreCompleto"
+          optionValue="id"
+          [filter]="true"
+          placeholder="Todos"
+          display="chip"
+          styleClass="w-full"
+        />
+      </div>
+
+      <div class="col-span-12 flex flex-col gap-1.5 md:col-span-4">
+        <label>Motor</label>
+        <p-multiSelect
+          [ngModel]="filtroMotor()"
+          (ngModelChange)="filtroMotor.set($event); onFiltroChange()"
+          [options]="motores"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Todos"
+          display="chip"
+          styleClass="w-full"
+        />
+      </div>
+
+      <div class="col-span-12 flex flex-wrap items-center gap-2">
+        @for (atajo of atajos; track atajo.valor) {
+          <p-button [label]="atajo.etiqueta" size="small" [outlined]="true" (onClick)="aplicarAtajo(atajo.valor)" />
+        }
+        @if (filtroNovedad(); as novedad) {
+          <p-chip [label]="'Novedad: ' + novedad.novedad" [removable]="true" (onRemove)="quitarFiltroNovedad()" />
+        }
+        <p-button
+          class="ml-auto"
+          label="Limpiar"
+          icon="pi pi-filter-slash"
+          size="small"
+          severity="secondary"
+          [text]="true"
+          (onClick)="limpiar()"
+        />
+      </div>
+    </div>
+
+    @if (kpis(); as datos) {
+      <!-- Indicadores generales -->
+      <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-lg border border-surface-200 px-4 py-3 dark:border-surface-700">
+          <div class="text-sm text-surface-500">Total soportes</div>
+          <div class="mt-1 flex items-baseline gap-2">
+            <span class="text-2xl font-semibold">{{ formatearNumero(datos.resumen.total) }}</span>
+            @if (datos.resumen.variacionTotal !== null) {
+              <span
+                class="text-sm font-medium"
+                [class.text-green-600]="datos.resumen.variacionTotal >= 0"
+                [class.text-red-600]="datos.resumen.variacionTotal < 0"
+              >
+                <i [class]="'pi text-xs ' + (datos.resumen.variacionTotal >= 0 ? 'pi-arrow-up' : 'pi-arrow-down')"></i>
+                {{ formatearPorcentaje(datos.resumen.variacionTotal) }}
+              </span>
+            }
+          </div>
+          <div class="mt-1 text-xs text-surface-500">
+            {{ formatearNumero(datos.resumen.pendientes) }} pendientes · periodo anterior
+            {{ formatearNumero(datos.resumen.totalPeriodoAnterior) }}
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-surface-200 px-4 py-3 dark:border-surface-700">
+          <div class="flex items-center gap-2 text-sm text-surface-500">
+            <i class="pi pi-check-circle text-green-600"></i> Completados
+          </div>
+          <div class="mt-1 text-2xl font-semibold">{{ formatearNumero(datos.resumen.completados) }}</div>
+          <div class="mt-1 text-xs text-surface-500">{{ participacion(datos.resumen.completados) }} del total</div>
+        </div>
+
+        <div class="rounded-lg border border-surface-200 px-4 py-3 dark:border-surface-700">
+          <div class="flex items-center gap-2 text-sm text-surface-500">
+            <i class="pi pi-times-circle text-red-600"></i> Con error
+          </div>
+          <div class="mt-1 text-2xl font-semibold">{{ formatearNumero(datos.resumen.errores) }}</div>
+          <div class="mt-1 text-xs text-surface-500">{{ participacion(datos.resumen.errores) }} del total</div>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 rounded-lg border border-surface-200 px-4 py-3 dark:border-surface-700">
+          <div class="min-w-0">
+            <div class="text-sm text-surface-500">Tasa de éxito</div>
+            <div class="mt-1 text-xs text-surface-500">Meta {{ metaExito }} %</div>
+            <div class="text-xs text-surface-500">completados / (completados + errores)</div>
+          </div>
+          <div
+            echarts
+            [options]="opcionesGauge()"
+            [autoResize]="true"
+            class="h-20 w-32 shrink-0"
+            role="img"
+            [attr.aria-label]="'Tasa de éxito ' + formatearPorcentaje(datos.resumen.tasaExito)"
+          ></div>
+        </div>
+      </div>
+
+      @if (sinDatos()) {
+        <div class="rounded-lg border border-dashed border-surface-300 p-10 text-center text-surface-500">
+          <i class="pi pi-inbox mb-2 text-3xl"></i>
+          <div>No hay soportes en el rango seleccionado.</div>
+        </div>
+      } @else {
+        <!-- ① Quién hace más soportes -->
+        <section class="mb-4 rounded-lg border border-surface-200 p-4 dark:border-surface-700">
+          <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="font-semibold">Quién hace más soportes</h2>
+            <span class="text-xs text-surface-500">Clic en un integrante para ver solo sus cifras</span>
+          </div>
+          <div
+            echarts
+            [options]="opcionesRanking()"
+            [autoResize]="true"
+            [style.height.px]="altoRanking()"
+            (chartClick)="onClicIntegrante($event)"
+            role="img"
+            aria-label="Ranking de integrantes por cantidad de soportes"
+          ></div>
+        </section>
+
+        <!-- ② Top 10 novedades -->
+        <section class="rounded-lg border border-surface-200 p-4 dark:border-surface-700">
+          <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="font-semibold">Top 10 novedades con mayor impacto</h2>
+            <span class="text-xs text-surface-500">Clic en una novedad para filtrar el tablero</span>
+          </div>
+          <div
+            echarts
+            [options]="opcionesNovedades()"
+            [autoResize]="true"
+            [style.height.px]="altoNovedades()"
+            (chartClick)="onClicNovedad($event)"
+            role="img"
+            aria-label="Top 10 de novedades por cantidad de soportes y porcentaje de error"
+          ></div>
+          @if (datos.concentracionTop10 !== null) {
+            <p class="mt-2 text-sm text-surface-600 dark:text-surface-300">
+              {{ datos.topNovedades.length }} novedades concentran el
+              <b>{{ formatearPorcentaje(datos.concentracionTop10) }}</b> de los soportes del rango.
+            </p>
+          }
+        </section>
+      }
+    }
+  }
+</div>

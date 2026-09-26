@@ -1,8 +1,12 @@
-<p-toast [breakpoints]="{ '640px': { width: 'calc(100vw - 2rem)', right: '1rem', left: '1rem' } }" />
+<p-toast
+  [breakpoints]="{ '640px': { width: 'calc(100vw - 2rem)', right: '1rem', left: '1rem' } }"
+/>
 <p-confirmdialog styleClass="confirmar-eliminar" [breakpoints]="{ '575px': '92vw' }" />
 <app-cambiar-password-modal />
 @if (loadingService.visible()) {
-  <div class="fixed inset-0 z-[1100] flex flex-col items-center justify-center gap-3 bg-black/40 text-white">
+  <div
+    class="fixed inset-0 z-[1100] flex flex-col items-center justify-center gap-3 bg-black/40 text-white"
+  >
     <p-progress-spinner strokeWidth="4" />
     <p>{{ loadingService.mensaje() }}</p>
   </div>
@@ -10,28 +14,31 @@
 @if (mostrarNavBar()) {
   <div class="flex h-dvh">
     <app-nav-bar />
-    <div class="flex min-w-0 flex-1 flex-col overflow-y-auto">
-      <!-- Tablet y móvil: el menú es un panel que abre esta hamburguesa (ver LayoutService). -->
-      <header
-        class="sticky top-0 z-30 flex items-center gap-3 border-b border-surface-200 bg-white px-4 py-2 lg:hidden dark:border-surface-700 dark:bg-surface-900"
-      >
-        <button
-          type="button"
-          class="inline-flex h-10 w-10 items-center justify-center rounded-md text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
-          aria-label="Abrir menú"
-          aria-controls="menu-lateral"
-          [attr.aria-expanded]="layoutService.menuMovilAbierto()"
-          (click)="layoutService.abrirMenuMovil()"
+    <div class="flex min-w-0 flex-1 flex-col">
+      <!-- Solo esta zona hace scroll: el pie queda siempre visible abajo. -->
+      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <!-- Tablet y móvil: el menú es un panel que abre esta hamburguesa (ver LayoutService). -->
+        <header
+          class="sticky top-0 z-30 flex items-center gap-3 border-b border-surface-200 bg-white px-4 py-2 lg:hidden dark:border-surface-700 dark:bg-surface-900"
         >
-          <i class="pi pi-bars text-lg"></i>
-        </button>
-        <img src="favicon.ico" alt="" width="24" height="24" />
-        <span class="font-semibold">SCP</span>
-      </header>
-      <main class="flex min-w-0 flex-1 flex-col">
-        <router-outlet />
-      </main>
-      <app-footer />
+          <button
+            type="button"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-md text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+            aria-label="Abrir menú"
+            aria-controls="menu-lateral"
+            [attr.aria-expanded]="layoutService.menuMovilAbierto()"
+            (click)="layoutService.abrirMenuMovil()"
+          >
+            <i class="pi pi-bars text-lg"></i>
+          </button>
+          <img src="favicon.ico" alt="" width="24" height="24" />
+          <span class="font-semibold">SCP</span>
+        </header>
+        <main class="flex min-w-0 flex-1 flex-col">
+          <router-outlet />
+        </main>
+      </div>
+      <app-footer class="shrink-0" />
     </div>
   </div>
 } @else {

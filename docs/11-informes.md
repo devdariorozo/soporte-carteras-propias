@@ -16,6 +16,7 @@ En el seed tienen acceso Super Administrador, Administrador, Desarrollador(a) y 
 - Tabla `soporte`, **incluidos los registros eliminados** (`withDeleted()` en `construirConsulta` de `informes.service.ts`). Un caso eliminado aparece con Registro **Inactivo** en el detalle y "Estado registro" Inactivo en el Excel.
 - La novedad también se trae aunque esté eliminada o inactiva.
 - El rango de fechas filtra por **fecha de creación** del caso.
+- Las cifras agregadas (tasa de éxito, ranking de integrantes, top de novedades) están en el [Tablero](15-tablero.md), sobre este mismo universo.
 
 ## Filtros
 
@@ -99,7 +100,8 @@ Todos con permiso **Informe → Consultar**. Filtros por query: `fechaInicio`, `
 
 | Qué | Dónde |
 |---|---|
-| Consultas, resumen, Excel, zona horaria | `backend/src/modules/informes/informes.service.ts` |
+| Consultas, resumen, Excel | `backend/src/modules/informes/informes.service.ts` |
+| Rango de fechas en hora Colombia (compartido con el Tablero) | `backend/src/common/utils/rango-fechas.util.ts` |
 | Filtros (DTO) | `backend/src/modules/informes/dto/filtros-informes.dto.ts` |
 | Nombre completo del responsable | `backend/src/common/utils/responsable.util.ts` |
 | Pantalla | `frontend/src/app/features/informes/` |

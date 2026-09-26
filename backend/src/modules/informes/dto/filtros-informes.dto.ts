@@ -2,16 +2,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsArray, IsDateString, IsIn, IsInt, IsOptional } from 'class-validator';
 import { PaginacionQueryDto } from '../../../common/dto/paginacion-query.dto.js';
+import { comoArregloDeNumeros, comoArregloDeTexto } from '../../../common/utils/query-arreglo.util.js';
 import { EstadoSoporte } from '../../soporte/soporte.entity.js';
-
-const comoArregloDeTexto = ({ value }: { value: unknown }) =>
-  value === undefined ? value : Array.isArray(value) ? value : [value];
-
-const comoArregloDeNumeros = ({ value }: { value: unknown }) => {
-  if (value === undefined) return value;
-  const arreglo = Array.isArray(value) ? value : [value];
-  return arreglo.map(Number);
-};
 
 export class FiltrosInformesDto extends PaginacionQueryDto {
   @ApiPropertyOptional({ description: 'YYYY-MM-DD, inclusive. Sin filtros de fecha, se acota al día actual.' })

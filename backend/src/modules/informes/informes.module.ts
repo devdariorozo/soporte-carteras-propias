@@ -9,5 +9,6 @@ import { InformesService } from './informes.service.js';
   imports: [TypeOrmModule.forFeature([Soporte, Usuario])],
   controllers: [InformesController],
   providers: [InformesService],
+  exports: [InformesService],
 })
 export class InformesModule {}

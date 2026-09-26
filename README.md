@@ -7,6 +7,7 @@ Documentación detallada por funcionalidad: [`docs/`](docs/README.md).
 ## ¿Para qué es?
 
 - **Soporte:** registrar el caso (cliente, novedad, mensaje de WhatsApp, motor, sentencia) y ejecutarlo de forma segura: solo `UPDATE` con `WHERE` o solo `INSERT INTO tabla (columnas) VALUES (...)` limpios (nunca mezclados), en transacción (todo o nada).
+- **Tablero:** KPIs del rango de fechas — indicadores generales, quién hace más soportes y top 10 de novedades (solo Super Administrador y Administrador).
 - **Informes:** consultar, filtrar y exportar a Excel los casos, con la sentencia y el resultado de cada uno.
 - **Administración:** usuarios, roles con jerarquía, permisos por menú y acción, menú, novedades y configuración.
 
@@ -14,7 +15,7 @@ Documentación detallada por funcionalidad: [`docs/`](docs/README.md).
 
 | Capa | Tecnología |
 |---|---|
-| Frontend | Angular 21, PrimeNG 21, Tailwind CSS 4, servido con nginx |
+| Frontend | Angular 21, PrimeNG 21, Tailwind CSS 4, Apache ECharts (Tablero), servido con nginx |
 | Backend | NestJS 12, TypeORM, JWT, BullMQ, Swagger (Node 22) |
 | Base del sistema | MySQL 8.0 |
 | Sesiones y colas | Redis 7 |
@@ -97,6 +98,30 @@ docker image rm soporte-carteras-propias-api soporte-carteras-propias-web    # b
 docker compose --env-file backend/.env down --rmi local    # bajar y borrar sus imágenes de un solo paso (conserva datos)
 ```
 
+**Detener e iniciar sin perder datos**
+
+`stop` apaga los contenedores y los deja creados; `start` los vuelve a encender tal como estaban. Los datos de MySQL no se tocan.
+
+```bash
+# Desarrollo
+docker compose --env-file backend/.env -f docker-compose-dev.yml stop    # apagar todos los contenedores (quedan creados)
+docker compose --env-file backend/.env -f docker-compose-dev.yml start   # encenderlos de nuevo
+docker compose --env-file backend/.env -f docker-compose-dev.yml ps -a   # ver el estado de cada contenedor
+
+# QA / PRO
+docker compose --env-file backend/.env stop    # apagar todos los contenedores (quedan creados)
+docker compose --env-file backend/.env start   # encenderlos de nuevo
+docker compose --env-file backend/.env ps -a   # ver el estado de cada contenedor
+```
+
+| Comando | Contenedores | Datos de MySQL |
+|---|---|---|
+| `stop` / `start` | Se apagan / encienden (siguen existiendo) | Se conservan |
+| `down` | Se borran (y la red); `up -d` los crea de nuevo | Se conservan |
+| `down -v` | Se borran | **Se BORRAN** (elimina el volumen) |
+
+Para apagar un solo servicio se agrega su nombre al final (`stop api`, `start api`). Los contenedores tienen `restart: unless-stopped`: si estaban encendidos, vuelven solos al reiniciar la máquina; si se apagaron con `stop`, siguen apagados hasta hacer `start`.
+
 **Limpieza total de Docker** (todos los contenedores e imágenes de la máquina, **incluidos otros proyectos**):
 
 ```bash
@@ -126,20 +151,48 @@ npm run schema:drop        # BORRA todas las tablas
 
 ### Docker
 
-```bash
-# Desarrollo
-docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npx tsx ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:show
-docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run migration:run
-docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run migration:revert
-docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run seed
-docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run schema:drop && docker compose --env-file backend/.env -f docker-compose-dev.yml restart api   # reconstruir (BORRA datos)
+Los comandos se ejecutan **dentro del contenedor `api`** (`exec api ...`), que debe estar encendido (`up -d` o `start`). Desarrollo usa los scripts normales (código TypeScript de `src/`); QA/PRO usa los terminados en `:prod` (código compilado de `dist/`).
 
-# QA / PRO
+**Desarrollo**
+
+```bash
+# Ver qué migraciones están aplicadas ([X] = aplicada, [ ] = pendiente). Solo consulta, no cambia nada.
+docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npx tsx ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:show
+
+# Aplicar las migraciones pendientes (crea las tablas que falten). No borra datos.
+docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run migration:run
+
+# Deshacer la última migración aplicada. CUIDADO: la migración es única, así que borra todas las tablas y sus datos.
+docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run migration:revert
+
+# Cargar los datos base (roles, permisos, Super Administrador, menú, novedades, configuración). Solo crea lo que falta.
+docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run seed
+
+# Reconstruir la base desde cero. BORRA TODOS LOS DATOS.
+#   1) schema:drop borra todas las tablas
+#   2) restart api reinicia la API, que al arrancar corre la migración y el seed (base limpia con datos base)
+docker compose --env-file backend/.env -f docker-compose-dev.yml exec api npm run schema:drop
+docker compose --env-file backend/.env -f docker-compose-dev.yml restart api
+```
+
+**QA / PRO**
+
+```bash
+# Ver qué migraciones están aplicadas ([X] = aplicada, [ ] = pendiente). Solo consulta, no cambia nada.
 docker compose --env-file backend/.env exec api node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:show
+
+# Aplicar las migraciones pendientes (crea las tablas que falten). No borra datos.
 docker compose --env-file backend/.env exec api npm run migration:run:prod
+
+# Deshacer la última migración aplicada. CUIDADO: la migración es única, así que borra todas las tablas y sus datos.
 docker compose --env-file backend/.env exec api npm run migration:revert:prod
+
+# Cargar los datos base. Solo crea lo que falta.
 docker compose --env-file backend/.env exec api npm run seed:prod
-docker compose --env-file backend/.env exec api npm run schema:drop:prod && docker compose --env-file backend/.env restart api   # reconstruir (BORRA datos)
+
+# Reconstruir la base desde cero. BORRA TODOS LOS DATOS (en PRO, sacar respaldo antes).
+docker compose --env-file backend/.env exec api npm run schema:drop:prod
+docker compose --env-file backend/.env restart api
 ```
 
 Al reiniciar `api` se corren la migración y el seed sin borrar datos: solo aplican lo que falte. Los datos viven en el volumen de MySQL, así que bajar/levantar contenedores o reconstruir imágenes no los pierde; solo `down -v` o `schema:drop` los borra.

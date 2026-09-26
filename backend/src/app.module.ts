@@ -21,6 +21,7 @@ import { ConfiguracionModule } from './modules/configuracion/configuracion.modul
 import { SoporteModule } from './modules/soporte/soporte.module.js';
 import { InformesModule } from './modules/informes/informes.module.js';
 import { MenuModule } from './modules/menu/menu.module.js';
+import { TableroModule } from './modules/tablero/tablero.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { MenuModule } from './modules/menu/menu.module.js';
     ConfiguracionModule,
     SoporteModule,
     InformesModule,
+    TableroModule,
     MenuModule,
   ],
   providers: [

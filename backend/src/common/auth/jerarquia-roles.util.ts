@@ -5,6 +5,9 @@ import { NombreRol } from '../../modules/roles/rol.entity.js';
 /** Ruta de la opción de menú Configuración (ver MENU_FINAL en el seed). */
 export const RUTA_CONFIGURACION = '/configuracion';
 
+/** Únicos roles que pueden tener el Tablero (endpoint `@Roles` y asignación de su permiso). */
+export const ROLES_TABLERO: string[] = [NombreRol.SUPER_ADMINISTRADOR, NombreRol.ADMINISTRADOR];
+
 /** Quien actúa: sale del access token (`AccessTokenPayload`). */
 export interface Actor {
   idRol: number;

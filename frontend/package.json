@@ -20,6 +20,8 @@
     "@angular/router": "^21.2.23",
     "@primeuix/themes": "^2.0.3",
     "@tailwindcss/postcss": "^4.3.3",
+    "echarts": "^6.1.0",
+    "ngx-echarts": "^21.0.0",
     "postcss": "^8.5.28",
     "primeicons": "^8.0.1",
     "primeng": "^21.1.10",

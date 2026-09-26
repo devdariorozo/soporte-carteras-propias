@@ -53,6 +53,7 @@ Navegador ──► web (nginx :80 → host :6001 dev / :7001 QA-PRO)
 | `configuracion` | `/api/configuracion` | Parámetros JSON versionados por `nombre`; al crear una versión se desactiva la anterior ([09](09-configuracion.md)) |
 | `soporte` | `/api/soporte` | Casos, autocompletado de `clientes`, `:id/ejecutar` (cola BullMQ + worker `ejecucion.processor.ts`) ([10](10-soporte.md)) |
 | `informes` | `/api/informes` | Listado filtrado, `usuarios`, `resumen` y `exportar` a Excel ([11](11-informes.md)) |
+| `tablero` | `/api/tablero` | KPIs agregados (`kpis`) y opciones del filtro Integrante (`usuarios`); solo Super Administrador y Administrador ([15](15-tablero.md)) |
 
 ### Transversales (`backend/src/common/`)
 
@@ -84,7 +85,7 @@ Navegador ──► web (nginx :80 → host :6001 dev / :7001 QA-PRO)
 | `core/services/` | `auth` (tokens, sesión entre pestañas), `permisos` (`mis-permisos`), `toast`, `confirm` (confirmación de eliminar), `loading` (preloader global), `cambiar-password-ui`, `layout` (menú lateral: contraído en PC, panel en móvil) |
 | `core/utils/` | Jerarquía de roles, motores, portapapeles, recarga por versión, regla de sentencia (espejo del backend), capitalización, `limite-excedido` (¿es un 429?) |
 | `core/validators/` | `password-strength.ts`: requisitos y nivel Débil / Media / Fuerte |
-| `features/` | Una carpeta por pantalla: `auth/login`, `auth/recuperar-password`, `home`, `roles`, `permisos`, `usuarios`, `menu`, `novedades`, `configuracion`, `soporte`, `informes` |
+| `features/` | Una carpeta por pantalla: `auth/login`, `auth/recuperar-password`, `home`, `roles`, `permisos`, `usuarios`, `menu`, `novedades`, `configuracion`, `soporte`, `tablero`, `informes` |
 | `shared/` | `nav-bar` (sidebar por permisos, responsive), `footer`, `alerta-resultado` (éxito/error/advertencia/info con Copiar), `cambiar-password-modal` (obligatorio o voluntario), `password-fortaleza` (medidor), `pipes/vacio.pipe.ts` (`---` en celdas vacías), `directives/tabla-responsiva.directive.ts` (tablas como tarjetas en móvil) |
 | `frontend/src/environments/` | `apiUrl: ''` en todos los ambientes |
 

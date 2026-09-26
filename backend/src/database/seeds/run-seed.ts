@@ -29,6 +29,7 @@ const MATRIZ_PERMISOS: Record<NombreRol, { menu: ModuloPermiso; acciones: Accion
     menu,
     acciones: accionesPermitidas(menu),
   })),
+  // Todo menos Configuración — incluye Tablero, que solo comparte con el Super Administrador.
   [NombreRol.ADMINISTRADOR]: TODOS_LOS_MODULOS.filter(
     (menu) => menu !== ModuloPermiso.CONFIGURACION,
   ).map((menu) => ({ menu, acciones: accionesPermitidas(menu) })),
@@ -237,10 +238,12 @@ const MENU_FINAL: { apartado: string; menu: string; ruta: string; icono: string;
   { apartado: 'Administración', menu: 'Permisos', ruta: '/permisos', icono: 'pi pi-lock', orden: 4 },
   { apartado: 'Administración', menu: 'Usuarios', ruta: '/usuarios', icono: 'pi pi-users', orden: 5 },
   { apartado: 'Administración', menu: 'Novedades', ruta: '/novedades', icono: 'pi pi-megaphone', orden: 6 },
-  { apartado: 'Control', menu: 'Informe', ruta: '/informes', icono: 'pi pi-chart-bar', orden: 7 },
-  { apartado: 'Operación', menu: 'Soporte', ruta: '/soporte', icono: 'pi pi-wrench', orden: 8 },
+  { apartado: 'Control', menu: 'Tablero', ruta: '/tablero', icono: 'pi pi-chart-pie', orden: 7 },
+  { apartado: 'Control', menu: 'Informe', ruta: '/informes', icono: 'pi pi-chart-bar', orden: 8 },
+  { apartado: 'Operación', menu: 'Soporte', ruta: '/soporte', icono: 'pi pi-wrench', orden: 9 },
 ];
 
+/** El orden sale solo de `MENU_FINAL` al sembrar una BD nueva: una opción que ya existe (por ruta) no se toca. */
 async function seedMenu(): Promise<void> {
   const repo = AppDataSource.getRepository(Menu);
   for (const item of MENU_FINAL) {

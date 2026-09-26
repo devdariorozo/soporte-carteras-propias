@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { DEFAULT_LIMIT, DEFAULT_PAGE, buildPaginationBlock } from '../../common/envelope/envelope.util.js';
@@ -8,8 +8,15 @@ import { adjuntarResponsables } from '../../common/utils/responsable.util.js';
 import { Usuario } from '../usuarios/usuario.entity.js';
 import { Menu } from '../menu/menu.entity.js';
 import { AccionPermiso, ModuloPermiso, Permiso, accionesPermitidas } from './permiso.entity.js';
-import { Actor, exigirJerarquia, exigirSuperAdministrador, puedeGestionarRol, rolesVisibles } from '../../common/auth/jerarquia-roles.util.js';
-import { NombreRol } from '../roles/rol.entity.js';
+import {
+  Actor,
+  ROLES_TABLERO,
+  exigirJerarquia,
+  exigirSuperAdministrador,
+  puedeGestionarRol,
+  rolesVisibles,
+} from '../../common/auth/jerarquia-roles.util.js';
+import { NombreRol, Rol } from '../roles/rol.entity.js';
 import { CrearPermisoDto } from './dto/crear-permiso.dto.js';
 import { ActualizarPermisoDto } from './dto/actualizar-permiso.dto.js';
 
@@ -21,12 +28,14 @@ export class PermisosService {
     @InjectRepository(Permiso) private readonly permisos: Repository<Permiso>,
     @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
     @InjectRepository(Menu) private readonly menus: Repository<Menu>,
+    @InjectRepository(Rol) private readonly roles: Repository<Rol>,
   ) {}
 
   async create(dto: CrearPermisoDto, idUsuario: number, actor: Actor) {
     this.validarAlcance(dto.menu, dto.idRol, actor);
     await this.validarMenu(dto.menu);
     this.validarAccion(dto.menu, dto.permiso);
+    await this.validarRolTablero(dto.menu, dto.idRol);
     await this.validarNoDuplicado(dto.idRol, dto.menu, dto.permiso);
     const { idRol, menu, permiso: accion, descripcion } = dto;
     const permiso = await this.permisos.save(
@@ -71,6 +80,7 @@ export class PermisosService {
       await this.validarMenu(dto.menu);
     }
     this.validarAccion(dto.menu ?? permiso.menu, dto.permiso ?? permiso.permiso);
+    await this.validarRolTablero(dto.menu ?? permiso.menu, dto.idRol ?? permiso.idRol);
     await this.validarNoDuplicado(dto.idRol ?? permiso.idRol, dto.menu ?? permiso.menu, dto.permiso ?? permiso.permiso, id);
     asignarDefinidos(permiso, dto);
     permiso.idUsuario = idUsuario;
@@ -127,6 +137,18 @@ export class PermisosService {
       throw new ConflictException({
         title: TITULO,
         message: `Ese permiso ya existe (${menu} / ${accion} para este rol)${existente.estadoRegistro === 1 ? '' : ', está inactivo: edítalo para activarlo'}.`,
+      });
+    }
+  }
+
+  /** El Tablero es exclusivo de Super Administrador y Administrador: su permiso no se asigna a otro rol. */
+  private async validarRolTablero(menu: string, idRol: number): Promise<void> {
+    if (menu !== ModuloPermiso.TABLERO) return;
+    const rol = await this.roles.findOne({ where: { id: idRol } });
+    if (!rol || !ROLES_TABLERO.includes(rol.rol)) {
+      throw new ForbiddenException({
+        title: TITULO,
+        message: 'El Tablero solo puede asignarse a los roles Super Administrador y Administrador.',
       });
     }
   }

@@ -18,3 +18,4 @@ Un archivo por funcionalidad. Cada uno responde: qué es, cómo funciona, reglas
 | 12 | [Interfaz y convenciones](12-interfaz-y-convenciones.md) | Estructura del frontend, rutas, componentes, formularios, tablas y diseño responsive (móvil, tablet, PC) |
 | 13 | [Despliegue y operación](13-despliegue-y-operacion.md) | Ambientes, variables, Docker, DBeaver, Cloudflared, pruebas, diagnóstico |
 | 14 | [API](14-api.md) | Todos los endpoints: método, permiso, cuerpo y respuesta |
+| 15 | [Tablero](15-tablero.md) | KPIs de soporte: indicadores, ranking de integrantes y top 10 de novedades (solo Super Administrador y Administrador) |

@@ -26,15 +26,16 @@ Duplicados de menú, ruta u orden se rechazan con 409 ("Ya existe una opción de
 | 4 | Administración | Permisos | `/permisos` | `pi pi-lock` |
 | 5 | Administración | Usuarios | `/usuarios` | `pi pi-users` |
 | 6 | Administración | Novedades | `/novedades` | `pi pi-megaphone` |
-| 7 | Control | Informe | `/informes` | `pi pi-chart-bar` |
-| 8 | Operación | Soporte | `/soporte` | `pi pi-wrench` |
+| 7 | Control | Tablero | `/tablero` | `pi pi-chart-pie` |
+| 8 | Control | Informe | `/informes` | `pi pi-chart-bar` |
+| 9 | Operación | Soporte | `/soporte` | `pi pi-wrench` |
 
-El seed crea cada opción solo si su ruta no existe.
+El seed crea cada opción solo si su ruta no existe. El orden sale solo de `MENU_FINAL` al sembrar una BD nueva: una opción que ya existe no se reordena (un cambio de orden del seed exige reconstruir la base o ajustarlo desde esta pantalla).
 
 ## Relación con permisos
 
 - El campo **Menú** es la llave que une la opción con sus permisos (`permisos.menu`). Al crear un permiso se exige que el valor sea igual al de una opción de menú **activa** (ver [05-permisos](05-permisos.md)).
-- El backend (`@RequierePermiso`) y las rutas del frontend (`permisoGuard`) usan los nombres fijos del seed: `Configuración`, `Roles`, `Menu`, `Permisos`, `Usuarios`, `Novedades`, `Informe`, `Soporte`. **Renombrar una opción sembrada rompe sus permisos** y su pantalla.
+- El backend (`@RequierePermiso`) y las rutas del frontend (`permisoGuard`) usan los nombres fijos del seed: `Configuración`, `Roles`, `Menu`, `Permisos`, `Usuarios`, `Novedades`, `Tablero`, `Informe`, `Soporte`. **Renombrar una opción sembrada rompe sus permisos** y su pantalla.
 - La barra muestra una opción solo si el rol tiene **Consultar** sobre ese menú.
 - Una opción nueva creada aquí aparece en la barra (con su permiso Consultar), pero solo lleva a una pantalla si esa ruta existe en `frontend/src/app/app.routes.ts`; si no, el router redirige al inicio.
 
@@ -42,8 +43,8 @@ El seed crea cada opción solo si su ruta no existe.
 
 | Rol | Opciones en la barra |
 |---|---|
-| Super Administrador | Las 8 |
-| Administrador | Todas menos Configuración |
+| Super Administrador | Las 9 |
+| Administrador | Todas menos Configuración (incluye Tablero) |
 | Desarrollador(a) | Novedades (Administración), Informe (Control), Soporte (Operación) |
 | Aprendiz Sena | Informe (Control) |
 

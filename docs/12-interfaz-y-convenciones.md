@@ -17,7 +17,7 @@ frontend/src/app/
     utils/               jerarquía de roles, motor, portapapeles, recarga de versión, sentencia, texto
     validators/          password-strength (política de contraseña)
   features/              una carpeta por pantalla (auth/login, auth/recuperar-password, home,
-                         roles, permisos, usuarios, novedades, configuracion, soporte, informes, menu)
+                         roles, permisos, usuarios, novedades, configuracion, soporte, tablero, informes, menu)
   shared/                nav-bar, footer, alerta-resultado, cambiar-password-modal,
                          password-fortaleza, pipes/vacio, directives/tabla-responsiva
 ```
@@ -41,6 +41,7 @@ frontend/src/app/
 | `/novedades` | Novedades | `authGuard`, `permisoGuard('Novedades')` |
 | `/configuracion` | Configuración | `authGuard`, `permisoGuard('Configuración')` |
 | `/soporte` | Soporte | `authGuard`, `permisoGuard('Soporte')` |
+| `/tablero` | Tablero | `authGuard`, `permisoGuard('Tablero')` |
 | `/informes` | Informes | `authGuard`, `permisoGuard('Informe')` |
 | `/menu` | Menú | `authGuard`, `permisoGuard('Menu')` |
 | `**` | — | redirige a `/` |
@@ -73,7 +74,7 @@ Reglas:
 | `<p-confirmdialog styleClass="confirmar-eliminar" />` | Sí | Confirmación de eliminar (`ConfirmService`). En móvil, 92vw |
 | `<app-cambiar-password-modal />` | Sí | Se muestra solo cuando corresponde |
 | Preloader | Si `LoadingService.visible()` | Overlay `fixed inset-0 z-[1100]`, spinner y mensaje |
-| `app-nav-bar` + `main` + `app-footer` | Con sesión y sin cambio de contraseña pendiente | Barra lateral (ver abajo), contenido con scroll propio (`min-w-0`, para que nada ensanche la página), pie abajo |
+| `app-nav-bar` + `main` + `app-footer` | Con sesión y sin cambio de contraseña pendiente | Barra lateral (ver abajo), contenido con scroll propio (`min-w-0`, para que nada ensanche la página), pie fijo abajo fuera de la zona de scroll |
 | Barra superior con hamburguesa | Con sesión, solo < 1024px (`lg:hidden`) | Botón ☰ (abre el menú), ícono de la app y "SCP"; fija arriba al hacer scroll |
 | `router-outlet` solo | Sin sesión o con `debeCambiarPassword` | Login, recuperar contraseña, o inicio con el modal obligatorio encima |
 
@@ -94,7 +95,7 @@ Se comporta según el ancho (estado en `core/services/layout.service.ts`, `Layou
 
 ### Pie (`shared/footer`)
 
-Texto de derechos de autor con el año actual, fondo oscuro fijo (`#0d1829`).
+Texto de derechos de autor con el año actual, fondo oscuro (`#0d1829`). Siempre visible: en `app.html` solo hace scroll el bloque de encabezado móvil + `main`; el pie queda fuera (`shrink-0`).
 
 ### Inicio (`features/home`)
 

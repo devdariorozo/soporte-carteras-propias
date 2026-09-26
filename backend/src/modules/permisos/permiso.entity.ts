@@ -6,7 +6,7 @@ import { Rol } from '../roles/rol.entity.js';
  * Los valores deben ser IDÉNTICOS a como se crea cada opción en el módulo Menu
  * (campo `menu`, ver menu.entity.ts) — Permisos ya no valida contra este enum
  * cerrado, sino contra las opciones de menú activas (ver PermisosService); este
- * enum solo documenta/fija el valor esperado para las 8 opciones sembradas y para
+ * enum solo documenta/fija el valor esperado para las 9 opciones sembradas y para
  * los `@RequierePermiso(...)` de cada controller.
  */
 export enum ModuloPermiso {
@@ -17,6 +17,7 @@ export enum ModuloPermiso {
   CONFIGURACION = 'Configuración',
   SOPORTE = 'Soporte',
   INFORMES = 'Informe',
+  TABLERO = 'Tablero',
   MENU = 'Menu',
 }
 
@@ -34,7 +35,7 @@ const ACCIONES_CRUD = [AccionPermiso.CREAR, AccionPermiso.EDITAR, AccionPermiso.
 /**
  * Acciones que admite cada menú — solo las que el sistema usa de verdad. `Opciones`
  * solo en los módulos que alimentan selects de otras vistas (`GET /<modulo>/opciones`);
- * Informe solo lista, resume y exporta, todo bajo `Consultar`. Menús sin entrada
+ * Informe solo lista, resume y exporta, y Tablero solo consulta, todo bajo `Consultar`. Menús sin entrada
  * (creados después desde el módulo Menu) admiten el CRUD. El frontend replica esta
  * regla en `permisos.component.ts`.
  */
@@ -43,6 +44,7 @@ export const ACCIONES_POR_MENU: Partial<Record<string, AccionPermiso[]>> = {
   [ModuloPermiso.USUARIOS]: [...ACCIONES_CRUD, AccionPermiso.OPCIONES],
   [ModuloPermiso.NOVEDADES]: [...ACCIONES_CRUD, AccionPermiso.OPCIONES],
   [ModuloPermiso.INFORMES]: [AccionPermiso.CONSULTAR],
+  [ModuloPermiso.TABLERO]: [AccionPermiso.CONSULTAR],
 };
 
 export function accionesPermitidas(menu: string): AccionPermiso[] {

@@ -103,7 +103,10 @@ export class InitialSchema1700000000000 implements MigrationInterface {
       ) ${TABLE_OPTIONS};
     `);
 
-    /** `motor` = `configuracion.nombre` de la conexión contra la que se ejecuta la sentencia. */
+    /**
+     * `motor` = `configuracion.nombre` de la conexión contra la que se ejecuta la sentencia.
+     * Índices por rango de `fecha_creacion` para los agregados del Tablero e Informe (por estado y por responsable).
+     */
     await queryRunner.query(`
       CREATE TABLE soporte (
         id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -114,6 +117,8 @@ export class InitialSchema1700000000000 implements MigrationInterface {
         sentencia TEXT NOT NULL,
         estado_soporte ENUM('Creado', 'En proceso', 'Completado', 'Error') NOT NULL DEFAULT 'Creado',
         ${AUDIT_COLUMNS},
+        KEY idx_soporte_fecha_estado (fecha_creacion, estado_soporte),
+        KEY idx_soporte_usuario_fecha (id_usuario, fecha_creacion),
         CONSTRAINT fk_soporte_novedad FOREIGN KEY (id_novedad) REFERENCES novedades (id) ON DELETE RESTRICT
       ) ${TABLE_OPTIONS};
     `);

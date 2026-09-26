@@ -68,7 +68,7 @@
     <form [formGroup]="form" (ngSubmit)="guardar()" class="flex flex-col gap-4 pt-2">
       <div class="flex flex-col gap-1.5">
         <label for="idRol">Rol</label>
-        <p-select inputId="idRol" formControlName="idRol" [options]="roles()" optionLabel="rol" optionValue="id" [filter]="true" filterBy="rol" styleClass="w-full" />
+        <p-select inputId="idRol" formControlName="idRol" [options]="rolesPara(form.controls.menu.value)" optionLabel="rol" optionValue="id" [filter]="true" filterBy="rol" styleClass="w-full" />
       </div>
       <div class="flex flex-col gap-1.5">
         <label for="menu">Menu</label>

@@ -8,6 +8,10 @@ export const ROL_SUPER_ADMINISTRADOR = 'Super Administrador';
 export const MENU_CONFIGURACION = 'Configuración';
 export const RUTA_CONFIGURACION = '/configuracion';
 
+/** El Tablero es exclusivo de estos roles: su permiso no se asigna a ningún otro (el backend lo rechaza con 403). */
+export const MENU_TABLERO = 'Tablero';
+export const ROLES_TABLERO = [ROL_SUPER_ADMINISTRADOR, 'Administrador'];
+
 export function esSuperAdministrador(rol: string | null | undefined): boolean {
   return rol === ROL_SUPER_ADMINISTRADOR;
 }

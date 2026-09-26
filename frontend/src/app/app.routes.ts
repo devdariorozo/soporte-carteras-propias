@@ -51,6 +51,11 @@ export const routes: Routes = [
     canActivate: [authGuard, permisoGuard('Soporte')],
   },
   {
+    path: 'tablero',
+    loadComponent: () => import('./features/tablero/tablero.component').then((m) => m.TableroComponent),
+    canActivate: [authGuard, permisoGuard('Tablero')],
+  },
+  {
     path: 'informes',
     loadComponent: () => import('./features/informes/informes.component').then((m) => m.InformesComponent),
     canActivate: [authGuard, permisoGuard('Informe')],

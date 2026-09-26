@@ -356,6 +356,27 @@ Filtros (`FiltrosInformesDto`, extiende la paginación):
 
 El informe incluye los registros de soporte eliminados (borrado lógico). En el Excel las celdas vacías salen `---`.
 
+## Tablero (`/api/tablero`)
+
+`modules/tablero/tablero.controller.ts` · título `Tablero` · detalle en [15-tablero](15-tablero.md)
+
+Todo el controlador exige `@Roles` Super Administrador o Administrador **y** el permiso `Tablero / Consultar` (otro rol → 403 aunque tenga el permiso).
+
+| Método | Ruta | Permiso | Query | Respuesta |
+|---|---|---|---|---|
+| GET | `/kpis` | `Tablero / Consultar` | filtros | `{ rango, resumen, porIntegrante[], topNovedades[], concentracionTop10 }` |
+| GET | `/usuarios` | `Tablero / Consultar` | — | `[{ id, nombreCompleto }]` de los responsables en soporte (igual que `/informes/usuarios`) |
+
+Filtros (`FiltrosTableroDto`):
+
+| Parámetro | Tipo | Regla |
+|---|---|---|
+| `fechaInicio` | `AAAA-MM-DD` | Inclusive. Sin fechas: **mes actual** (día 1 a hoy, hora Colombia). Con una sola, se usa para ambos extremos |
+| `fechaFin` | `AAAA-MM-DD` | Inclusive. Inicio > fin o más de 366 días → **400** |
+| `idUsuario` | entero, repetible | `IN` sobre el responsable |
+| `motor` | `mysql` \| `postgres`, repetible | `IN` |
+| `idNovedad` | entero, repetible | `IN` (filtro cruzado desde el top 10) |
+
 ## Soporte (`/api/soporte`)
 
 `modules/soporte/soporte.controller.ts` · título `Soporte` · detalle en [10-soporte](10-soporte.md)

@@ -7,7 +7,7 @@ type Metodo = 'get' | 'post' | 'patch' | 'delete';
 
 /**
  * Flujo completo de extremo a extremo (Fase 7): login -> novedad -> registrar y
- * ejecutar un caso de soporte -> confirmar que aparece en informes. Corre contra la
+ * ejecutar un caso de soporte -> confirmar que aparece en informes y en el tablero. Corre contra la
  * base de datos real de desarrollo (mismo criterio que `app.e2e-spec.ts`), usando el
  * Super Administrador sembrado (`SEED_SUPERADMIN_*`) y una versión de prueba de la
  * configuración `mysql` que apunta a la propia base del proyecto (sin depender de un
@@ -95,5 +95,9 @@ describe('Flujo completo (e2e)', () => {
     const encontrado = informes.body.data.find((r: { id: number }) => r.id === idsALimpiar.soporte);
     expect(encontrado).toBeDefined();
     expect(encontrado.estadoSoporte).toBe('Completado');
+
+    const tablero = await auth('get', '/api/tablero/kpis').query({ idNovedad: idsALimpiar.novedad }).expect(200);
+    expect(tablero.body.data.resumen.completados).toBeGreaterThanOrEqual(1);
+    expect(tablero.body.data.topNovedades[0].idNovedad).toBe(idsALimpiar.novedad);
   }, 20_000);
 });

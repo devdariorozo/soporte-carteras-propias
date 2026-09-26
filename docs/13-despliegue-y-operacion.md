@@ -166,6 +166,8 @@ docker image rm soporte-carteras-propias-api soporte-carteras-propias-web       
 ```
 
 - **Los datos no se pierden** al bajar/levantar contenedores, reconstruir imágenes o borrarlas: viven en el volumen de MySQL de cada ambiente (`soporte-carteras-propias-dev-mysql-data` / `soporte-carteras-propias-mysql-data`). Solo `down -v`, `docker volume rm` o `schema:drop` los borran. Al arrancar, migración y seed solo aplican lo que falte.
+- Nunca `docker rm -f $(docker ps -aq)` ni `docker rmi -f $(docker images -q)`: borran contenedores e imágenes de **todos** los proyectos del servidor (y no tocan el volumen). Para reconstruir solo este: `down -v` + `up -d --build`.
+- Si `api` queda en `Restarting` (p. ej. el seed choca con datos de un esquema anterior), `exec` no entra: usar `docker compose --env-file backend/.env run --rm --no-deps --entrypoint "" api npm run schema:drop:prod` y luego `restart api` (BORRA datos).
 - No se usa `down --rmi all`: también borraría las imágenes de `mysql` y `redis`, compartidas por ambos ambientes.
 - Cada ambiente publica su MySQL en un puerto distinto (desarrollo `localhost:3360`, QA/PRO `localhost:3371`): DBeaver puede ver ambas bases a la vez.
 
@@ -264,7 +266,7 @@ Backend (`backend/`, Vitest):
 | Comando | Config | Qué corre |
 |---|---|---|
 | `npm run test` | `vitest.config.ts` (`**/*.spec.ts`) | Unitarias. Hoy **no hay** archivos `*.spec.ts` en el backend: Vitest responde "No test files found" |
-| `npm run test:e2e` | `vitest.config.e2e.ts` (`**/*.e2e-spec.ts`) | `test/app.e2e-spec.ts` (health) y `test/flujo-completo.e2e-spec.ts` (login → novedad → soporte → ejecutar → informes) |
+| `npm run test:e2e` | `vitest.config.e2e.ts` (`**/*.e2e-spec.ts`) | `test/app.e2e-spec.ts` (health) y `test/flujo-completo.e2e-spec.ts` (login → novedad → soporte → ejecutar → informes y tablero) y `test/tablero.e2e-spec.ts` (contrato de KPIs, rangos inválidos, permiso Tablero solo para Super Administrador y Administrador) |
 
 Requisitos de las e2e:
 - Corren en el host contra la base y el Redis de `backend/.env`: `DB_HOST=localhost`, `DB_PORT=3360`, `REDIS_HOST=localhost`, `REDIS_PORT=3361`.

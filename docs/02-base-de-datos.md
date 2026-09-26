@@ -105,6 +105,8 @@ Migración única: `backend/src/database/migrations/1700000000000-initial-schema
 | `sentencia` | `TEXT NOT NULL` | Uno o varios `UPDATE` con `WHERE`, o uno o varios `INSERT` limpios (sin mezclar) |
 | `estado_soporte` | `ENUM('Creado','En proceso','Completado','Error') NOT NULL DEFAULT 'Creado'` | No existe `Cancelado` |
 
+Índices para los agregados por rango de fechas del [Tablero](15-tablero.md) e Informe: `idx_soporte_fecha_estado (fecha_creacion, estado_soporte)` e `idx_soporte_usuario_fecha (id_usuario, fecha_creacion)`. `id_novedad` ya queda indexado por su FK.
+
 ### `configuracion`
 
 | Columna | Tipo | Nota |
@@ -143,10 +145,10 @@ Corre en cada arranque del contenedor `api` (después de la migración). Crea so
 | Paso | Qué crea | Clave de idempotencia |
 |---|---|---|
 | Roles | 4: Super Administrador (id 1), Administrador (2), Desarrollador(a) (3), Aprendiz Sena (4) | `rol` |
-| Permisos | 71 filas: Super Administrador 32, Administrador 28 (todo menos Configuración), Desarrollador(a) 9, Aprendiz Sena 2 (ver [05-permisos](05-permisos.md)) | `id_rol` + `menu` + `permiso` |
+| Permisos | 73 filas: Super Administrador 33, Administrador 29 (todo menos Configuración), Desarrollador(a) 9, Aprendiz Sena 2 (ver [05-permisos](05-permisos.md)) | `id_rol` + `menu` + `permiso` |
 | Super Administrador | Desde `SEED_SUPERADMIN_*`: `usuario` = documento sin formato, documento con puntos, teléfono `3-3-4`, contraseña bcrypt, `debe_cambiar_password = 1` | `usuario` |
 | Configuraciones | `mysql` y `postgres` con datos **ficticios** (placeholders). `postgres` trae, en el orden de DBeaver, Main (`host`, `database`, `username`, `password`, `port`), `ssl: true` y SSH (`ssh_host`, `ssh_username`, `ssh_passphrase`, `ssh_port`). No hay fila `cors`: CORS va en `CORS_ORIGENES` del `.env`. Si la fila activa ya existe, el seed solo le **agrega las claves que le falten** con su valor de ejemplo (nunca cambia un valor escrito) | `nombre` |
-| Menú | 8 opciones: Configuración, Roles, Menu, Permisos, Usuarios, Novedades (Administración), Informe (Control), Soporte (Operación) | `ruta` |
+| Menú | 9 opciones: Configuración, Roles, Menu, Permisos, Usuarios, Novedades (Administración), Tablero e Informe (Control), Soporte (Operación). El orden sale solo de `MENU_FINAL` al sembrar una BD nueva: una opción que ya existe no se reordena | `ruta` |
 | Novedades | 21 tipos de caso (ej. Romper Acuerdo, Subir Novación, Caída De Soul...) | `novedad`, incluidas las eliminadas |
 
 Reglas:

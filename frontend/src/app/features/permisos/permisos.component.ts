@@ -17,7 +17,14 @@ import { OpcionRol, Rol } from '../roles/roles.component';
 import { capitalizarPrimeraLetra } from '../../core/utils/texto.util';
 import { VacioPipe } from '../../shared/pipes/vacio.pipe';
 import { AuthService } from '../../core/services/auth.service';
-import { MENU_CONFIGURACION, esSuperAdministrador, nivelRol, puedeGestionarRol } from '../../core/utils/jerarquia-roles.util';
+import {
+  MENU_CONFIGURACION,
+  MENU_TABLERO,
+  ROLES_TABLERO,
+  esSuperAdministrador,
+  nivelRol,
+  puedeGestionarRol,
+} from '../../core/utils/jerarquia-roles.util';
 import { TablaResponsivaDirective } from '../../shared/directives/tabla-responsiva.directive';
 
 const MODULO = 'Permisos';
@@ -27,13 +34,14 @@ const ACCIONES_CON_OPCIONES = [...ACCIONES_PERMISO, 'Opciones'];
 
 /**
  * Misma regla que el backend (`ACCIONES_POR_MENU` en permiso.entity.ts): Opciones solo en
- * los módulos que alimentan selects de otras vistas; Informe solo admite Consultar.
+ * los módulos que alimentan selects de otras vistas; Informe y Tablero solo admiten Consultar.
  */
 const ACCIONES_POR_MENU: Record<string, string[]> = {
   Roles: ACCIONES_CON_OPCIONES,
   Usuarios: ACCIONES_CON_OPCIONES,
   Novedades: ACCIONES_CON_OPCIONES,
   Informe: ['Consultar'],
+  Tablero: ['Consultar'],
 };
 
 interface OpcionMenuActiva {
@@ -138,11 +146,19 @@ export class PermisosComponent implements OnInit {
     return ACCIONES_POR_MENU[menu] ?? ACCIONES_PERMISO;
   }
 
-  /** Si la acción elegida no aplica al nuevo menú (ej. Crear en Informe), se limpia. */
+  /** Tablero solo se asigna a Super Administrador y Administrador. */
+  rolesPara(menu: string): OpcionRol[] {
+    return menu === MENU_TABLERO ? this.roles().filter((rol) => ROLES_TABLERO.includes(rol.rol)) : this.roles();
+  }
+
+  /** Si la acción o el rol elegidos no aplican al nuevo menú (ej. Crear en Informe), se limpian. */
   onMenuChange(): void {
-    const { menu, permiso } = this.form.getRawValue();
+    const { menu, permiso, idRol } = this.form.getRawValue();
     if (permiso && !this.accionesPara(menu).includes(permiso)) {
       this.form.controls.permiso.setValue('');
+    }
+    if (idRol !== null && !this.rolesPara(menu).some((rol) => rol.id === idRol)) {
+      this.form.controls.idRol.setValue(null);
     }
   }
 

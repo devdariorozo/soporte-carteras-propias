@@ -14,7 +14,7 @@ Cada permiso es una fila de la tabla `permisos`: **rol + menú + acción**. La f
 
 ### Módulos (`ModuloPermiso`)
 
-Enum en `backend/src/modules/permisos/permiso.entity.ts`. Fija el valor de los 8 menús del seed y el de cada `@RequierePermiso(...)`. El campo `menu` **no** se valida contra este enum sino contra las opciones de menú activas (un menú nuevo creado en [07-menu](07-menu.md) se puede usar en Permisos).
+Enum en `backend/src/modules/permisos/permiso.entity.ts`. Fija el valor de los 9 menús del seed y el de cada `@RequierePermiso(...)`. El campo `menu` **no** se valida contra este enum sino contra las opciones de menú activas (un menú nuevo creado en [07-menu](07-menu.md) se puede usar en Permisos).
 
 | Enum | Valor (`menu`) |
 |---|---|
@@ -25,6 +25,7 @@ Enum en `backend/src/modules/permisos/permiso.entity.ts`. Fija el valor de los 8
 | `CONFIGURACION` | `Configuración` |
 | `SOPORTE` | `Soporte` |
 | `INFORMES` | `Informe` (singular) |
+| `TABLERO` | `Tablero` |
 | `MENU` | `Menu` (sin tilde) |
 
 Si se renombra una opción de menú, sus permisos y los `@RequierePermiso` dejan de coincidir.
@@ -45,11 +46,12 @@ Si se renombra una opción de menú, sus permisos y los `@RequierePermiso` dejan
 |---|---|
 | Roles, Usuarios, Novedades | Crear, Editar, Eliminar, Consultar, **Opciones** |
 | Informe | Solo **Consultar** (listar, resumir y exportar) |
+| Tablero | Solo **Consultar** (indicadores y opciones de su filtro) |
 | Demás (Configuración, Soporte, Permisos, Menu y menús nuevos) | Crear, Editar, Eliminar, Consultar |
 
 La vista Permisos solo ofrece las acciones válidas del menú elegido (si se cambia el menú y la acción ya no aplica, se limpia); el backend rechaza las demás con **400** "El menú X solo admite: …". El frontend replica la tabla en `features/permisos/permisos.component.ts`.
 
-## Matriz inicial (seed, 71 permisos)
+## Matriz inicial (seed, 73 permisos)
 
 `backend/src/database/seeds/run-seed.ts` (`MATRIZ_PERMISOS`). El seed solo crea las filas que faltan; no borra ni reactiva.
 
@@ -61,9 +63,10 @@ La vista Permisos solo ofrece las acciones válidas del menú elegido (si se cam
 | Permisos | CRUD | CRUD | — | — |
 | Usuarios | CRUD + Opciones | CRUD + Opciones | Opciones | — |
 | Novedades | CRUD + Opciones | CRUD + Opciones | Crear, Editar, Consultar, Opciones | Opciones |
+| Tablero | Consultar | Consultar | — | — |
 | Informe | Consultar | Consultar | Consultar | Consultar |
 | Soporte | CRUD | CRUD | Crear, Editar, Consultar | — |
-| **Total** | **32** | **28** | **9** | **2** |
+| **Total** | **33** | **29** | **9** | **2** |
 
 CRUD = Crear, Editar, Eliminar, Consultar. Super Administrador y Administrador reciben todas las acciones válidas de cada menú (`accionesPermitidas`), el Administrador sin Configuración.
 
@@ -147,6 +150,7 @@ Todos bajo `/api`. "Sesión" = solo token válido (sin `@RequierePermiso`).
 | PATCH | `/soporte/:id` | Soporte / Editar |
 | DELETE | `/soporte/:id` | Soporte / Eliminar |
 | GET | `/informes`, `/informes/usuarios`, `/informes/resumen`, `/informes/exportar` | Informe / Consultar |
+| GET | `/tablero/kpis`, `/tablero/usuarios` | `@Roles` Super Administrador o Administrador **y** Tablero / Consultar |
 
 Además del permiso, Roles, Usuarios y Permisos aplican la jerarquía ([04-roles-y-jerarquia](04-roles-y-jerarquia.md)). Los endpoints `/configuracion` solo exigen el permiso: la exclusividad del Super Administrador se garantiza porque solo él puede asignar permisos de Configuración (y, en Menu, solo él gestiona la opción con ruta `/configuracion`).
 
@@ -157,6 +161,7 @@ Además del permiso, Roles, Usuarios y Permisos aplican la jerarquía ([04-roles
 | Único | Un mismo rol + menú + acción solo existe una vez, activo o inactivo (los eliminados no cuentan). Duplicado → **409** "Ese permiso ya existe (Menú / Acción para este rol)."; si el existente está inactivo agrega ", está inactivo: edítalo para activarlo". |
 | Menú válido | Debe ser igual a una opción de menú activa → si no, **400** "El valor de Menu debe ser igual al de una opción de menú activa." |
 | Acción válida | Según `ACCIONES_POR_MENU` → **400** "El menú X solo admite: …" |
+| Tablero | Su permiso solo se asigna a Super Administrador y Administrador (al crear y al editar, validado sobre el rol resultante). Otro rol → **403** "El Tablero solo puede asignarse a los roles Super Administrador y Administrador."; la vista Permisos solo ofrece esos dos roles cuando el menú es Tablero. |
 | Jerarquía | Solo permisos de roles del nivel propio hacia abajo. Al editar se valida el permiso actual **y** el resultado (no se puede mover a un rol superior). **403** "No puedes gestionar permisos de un rol por encima del tuyo." |
 | Configuración | Solo el Super Administrador ve, asigna, edita o elimina permisos del menú Configuración (**403** "Solo el Super Administrador puede gestionar permisos de Configuración."). A los demás no les aparecen en el listado ni en el select de menú. |
 | Descripción | Opcional, 3–255 |
